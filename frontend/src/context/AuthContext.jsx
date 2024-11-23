@@ -1,105 +1,93 @@
+// src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import endpoints from '../services/api';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const navigate = useNavigate();
+ const [user, setUser] = useState(null);
+ const [loading, setLoading] = useState(true);
+ const [error, setError] = useState(null);
+ const navigate = useNavigate();
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+ useEffect(() => {
+   checkAuth();
+ }, []);
 
-  const checkAuth = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const response = await api.get('/auth/me');
-        setUser(response.data);
-      }
-    } catch (error) {
-      localStorage.removeItem('token');
-      delete api.defaults.headers.common['Authorization'];
-    } finally {
-      setLoading(false);
-    }
-  };
+ const checkAuth = async () => {
+   try {
+     const result = await endpoints.auth.checkAuth();
+     if (result.success) {
+       setUser(result.user);
+     }
+   } catch (error) {
+     setError(error.message);
+   } finally {
+     setLoading(false);
+   }
+ };
 
-  const login = async (credentials) => {
-    try {
-      setError(null);
-      const response = await api.post('/auth/login', credentials);
-      const { token, user: userData } = response.data;
-      
-      localStorage.setItem('token', token);
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setUser(userData);
-      navigate('/');
-      
-      return { success: true };
-    } catch (error) {
-      setError(error.response?.data?.message || 'Login failed');
-      return { success: false, error: error.response?.data?.message };
-    }
-  };
+ const login = async (credentials) => {
+   try {
+     setError(null);
+     const result = await endpoints.auth.login(credentials);
+     if (result.success) {
+       setUser(result.user);
+       navigate('/');
+       return { success: true };
+     } else {
+       setError(result.error);
+       return { success: false, error: result.error };
+     }
+   } catch (error) {
+     const errorMessage = 'Login failed. Please try again.';
+     setError(errorMessage);
+     return { success: false, error: errorMessage };
+   }
+ };
 
-  const logout = async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      localStorage.removeItem('token');
-      delete api.defaults.headers.common['Authorization'];
-      setUser(null);
-      navigate('/login');
-    }
-  };
+ const logout = async () => {
+   try {
+     const result = await endpoints.auth.logout();
+     if (result.success) {
+       setUser(null);
+       navigate('/login');
+       return { success: true };
+     } else {
+       setError(result.error);
+       return { success: false, error: result.error };
+     }
+   } catch (error) {
+     const errorMessage = 'Logout failed. Please try again.';
+     setError(errorMessage);
+     return { success: false, error: errorMessage };
+   }
+ };
 
-  const register = async (userData) => {
-    try {
-      setError(null);
-      const response = await api.post('/auth/register', userData);
-      const { token, user: newUser } = response.data;
-      
-      localStorage.setItem('token', token);
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setUser(newUser);
-      navigate('/');
-      
-      return { success: true };
-    } catch (error) {
-      setError(error.response?.data?.message || 'Registration failed');
-      return { success: false, error: error.response?.data?.message };
-    }
-  };
+ const value = {
+   user,
+   loading,
+   error,
+   login,
+   logout,
+   isAuthenticated: !!user,
+   setError
+ };
 
-  return (
-    <AuthContext.Provider 
-      value={{
-        user,
-        loading,
-        error,
-        login,
-        logout,
-        register,
-        isAuthenticated: !!user,
-      }}
-    >
-      {!loading && children}
-    </AuthContext.Provider>
-  );
+ return (
+   <AuthContext.Provider value={value}>
+     {!loading && children}
+   </AuthContext.Provider>
+ );
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+ const context = useContext(AuthContext);
+ if (!context) {
+   throw new Error('useAuth must be used within an AuthProvider');
+ }
+ return context;
 };
+
+export default AuthContext;

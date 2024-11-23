@@ -10,7 +10,7 @@ function AddTherapistModal({ isOpen, onClose, onAdd, branchCode }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/therapists', {
+      await api.therapists.create({
         ...formData,
         branchCode,
         isActive: true
