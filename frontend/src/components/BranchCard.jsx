@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
-import { Info, Calendar, Users, ChevronRight } from 'lucide-react';
+import { Calendar, Users, ChevronRight } from 'lucide-react';
 
-function BranchCard({ branch }) {
+const BranchCard = ({ branch }) => {
   const navigate = useNavigate();
   const [showTutorial, setShowTutorial] = useState(false);
 
-  // Tutorial content for each action
   const tutorials = {
     viewSchedule: {
       title: "View Schedule",
@@ -53,6 +52,23 @@ function BranchCard({ branch }) {
         "Performance tracking"
       ],
       icon: Users
+    }
+  };
+
+  const handleNavigation = (tutorialType) => {
+    switch (tutorialType) {
+      case 'viewSchedule':
+        navigate(`/schedule/${branch.branchCode}`);
+        break;
+      case 'manageSchedule':
+        navigate(`/schedule/manage/${branch.branchCode}`);
+        break;
+      case 'therapists':
+        navigate(`/therapists/${branch.branchCode}`);
+        break;
+      default:
+        console.log('Unknown tutorial type');
+        break;
     }
   };
 
@@ -121,7 +137,10 @@ function BranchCard({ branch }) {
         </div>
 
         <button
-          onClick={onClose}
+          onClick={() => {
+            onClose();
+            handleNavigation(showTutorial);
+          }}
           className="mt-6 w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
         >
           Got it!
@@ -176,32 +195,26 @@ function BranchCard({ branch }) {
           <Users className="w-4 h-4" />
           Therapists
         </button>
+        <button
+          onClick={() => navigate(`/branches/${branch.branchCode}/shift-settings`)}
+          className="flex items-center gap-1 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded text-sm"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" />
+          </svg>
+          Shift Settings
+        </button>
       </div>
 
-      {/* Tutorial Modal */}
       {showTutorial && (
         <Tutorial
           content={tutorials[showTutorial]}
-          onClose={() => {
-            setShowTutorial(false);
-            // Navigate after closing tutorial
-            switch (showTutorial) {
-              case 'viewSchedule':
-                navigate(`/schedule/${branch.branchCode}`);
-                break;
-              case 'manageSchedule':
-                navigate(`/schedule/manage/${branch.branchCode}`);
-                break;
-              case 'therapists':
-                navigate(`/therapists/${branch.branchCode}`);
-                break;
-            }
-          }}
+          onClose={() => setShowTutorial(false)}
         />
       )}
     </div>
   );
-}
+};
 
 BranchCard.propTypes = {
   branch: PropTypes.shape({

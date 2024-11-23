@@ -1,11 +1,29 @@
-const auth = (req, res, next) => {
-    // Basic auth middleware - expand as needed
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ message: 'Authorization required' });
+const jwt = require('jsonwebtoken');
+
+const authMiddleware = {
+  authenticate: (req, res, next) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      if (!token) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = decoded;
+      next();
+    } catch (error) {
+      return res.status(401).json({ message: 'Invalid token' });
     }
-    next();
-  };
-  
-  module.exports = auth;
-  
+  },
+
+  authorize: (roles = []) => {
+    return (req, res, next) => {
+      if (!roles.includes(req.user.role)) {
+        return res.status(403).json({ message: 'Unauthorized access' });
+      }
+      next();
+    };
+  }
+};
+
+module.exports = authMiddleware;

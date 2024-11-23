@@ -7,6 +7,7 @@ import ScheduleView from './pages/ScheduleView';
 import ScheduleManagement from './pages/ScheduleManagement';
 import TherapistManagement from './pages/TherapistManagement';
 import Settings from './pages/Settings';
+import ShiftSettings from './pages/ShiftSettings'; // Add this import
 import PrivateRoute from './components/PrivateRoute';
 import NavigationBar from './components/NavigationBar';
 
@@ -39,6 +40,13 @@ const AppRoutes = () => {
             </PrivateRoute>
           } />
 
+          {/* Shift Settings Route */}
+          <Route path="/branches/:branchCode/shift-settings" element={
+            <PrivateRoute>
+              <ShiftSettings />
+            </PrivateRoute>
+          } />
+
           {/* Therapist Routes */}
           <Route path="/therapists/:branchCode" element={
             <PrivateRoute>
@@ -68,8 +76,6 @@ const AppRoutes = () => {
           } />
         </Routes>
       </main>
-
-      {/* Optional: Add a footer component here */}
     </div>
   );
 };

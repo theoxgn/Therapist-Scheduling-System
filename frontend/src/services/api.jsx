@@ -1,5 +1,6 @@
 // src/services/api.jsx
 import axios from 'axios';
+import { format } from 'date-fns';
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3000/api',
@@ -350,24 +351,31 @@ const endpoints = {
           data: response.data 
         };
       } catch (error) {
+        console.error('Schedule create error:', error.response || error);
         return {
           success: false,
-          error: error.response?.data?.message || 'Failed to create schedule'
+          error: error.response?.data?.message || 'Failed to create schedule',
+          details: error.response?.data
         };
       }
     },
 
     update: async (id, scheduleData) => {
       try {
-        const response = await api.put(`/schedules/${id}`, scheduleData);
+        const response = await api.put(`/schedules/${id}`, {
+          ...scheduleData,
+          id  // Ensure ID is included in the request
+        });
         return { 
           success: true, 
           data: response.data 
         };
       } catch (error) {
+        console.error('Schedule update error:', error.response || error);
         return {
           success: false,
-          error: error.response?.data?.message || 'Failed to update schedule'
+          error: error.response?.data?.message || 'Failed to update schedule',
+          details: error.response?.data
         };
       }
     },
@@ -401,6 +409,27 @@ const endpoints = {
       }
     },
 
+    clearDay: async (branchCode, date) => {
+      try {
+        const formattedDate = new Date(date).toISOString().split('T')[0];
+        const response = await api.post('/schedules/clear-day', {
+          branchCode,
+          date: formattedDate
+        });
+        
+        return { 
+          success: true,
+          data: response.data
+        };
+      } catch (error) {
+        console.error('Clear day error:', error.response || error);
+        return {
+          success: false,
+          error: error.response?.data?.message || 'Failed to clear schedules'
+        };
+      }
+    },
+
     validateSchedule: async (scheduleData) => {
       try {
         const response = await api.post('/schedules/validate', scheduleData);
@@ -412,6 +441,31 @@ const endpoints = {
         return {
           success: false,
           error: error.response?.data?.message || 'Schedule validation failed'
+        };
+      }
+    }
+  },
+  shiftSettings: {
+    get: async (branchCode) => {
+      try {
+        const response = await axios.get(`/api/branches/${branchCode}/shift-settings`);
+        return { success: true, data: response.data };
+      } catch (error) {
+        return {
+          success: false,
+          error: error.response?.data?.message || 'Failed to fetch shift settings'
+        };
+      }
+    },
+
+    update: async (branchCode, settings) => {
+      try {
+        const response = await axios.put(`/api/branches/${branchCode}/shift-settings`, settings);
+        return { success: true, data: response.data };
+      } catch (error) {
+        return {
+          success: false,
+          error: error.response?.data?.message || 'Failed to update shift settings'
         };
       }
     }

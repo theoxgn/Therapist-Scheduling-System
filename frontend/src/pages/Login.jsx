@@ -12,14 +12,6 @@ function Login() {
       password: ''
     });
 
-    // const handleSubmit = async (e) => {
-    //     e.preventDefault();
-    //     const result = await login(formData);
-    //     if (result.success) {
-    //         navigate('/');
-    //     }
-    // };
-
     const handleSubmit = async (e) => {
       e.preventDefault();
       try {
