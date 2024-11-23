@@ -17,12 +17,6 @@ function NavigationBar() {
           >
             Branches
           </Link>
-          <Link 
-            to="/settings"
-            className={`${location.pathname === '/settings' ? 'text-white' : 'text-blue-200'}`}
-          >
-            Settings
-          </Link>
         </div>
       </div>
     </nav>

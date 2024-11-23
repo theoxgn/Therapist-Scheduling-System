@@ -221,9 +221,9 @@ BranchCard.propTypes = {
     branchCode: PropTypes.string.isRequired,
     name: PropTypes.string.isRequired,
     address: PropTypes.string.isRequired,
-    maxShift1Therapists: PropTypes.number.isRequired,
-    genderRestricted: PropTypes.bool.isRequired,
-    weekendOnlyMale: PropTypes.bool.isRequired
+    // maxShift1Therapists: PropTypes.number.isRequired,
+    // genderRestricted: PropTypes.bool.isRequired,
+    // weekendOnlyMale: PropTypes.bool.isRequired
   }).isRequired
 };
 

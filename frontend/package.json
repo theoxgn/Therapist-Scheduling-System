@@ -39,5 +39,13 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
+  },
+  "overrides": {
+    "babel-preset-react-app": {
+      "@babel/plugin-proposal-private-property-in-object": "^7.16.7"
+    }
   }
 }

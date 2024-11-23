@@ -443,7 +443,48 @@ const endpoints = {
           error: error.response?.data?.message || 'Schedule validation failed'
         };
       }
-    }
+    },
+    exportPDF: async (data) => {
+      try {
+        console.log('Sending PDF export request with data:', data); // Debug log
+  
+        if (!data.branchCode) {
+          throw new Error('Branch code is required');
+        }
+  
+        const response = await api.post(
+          '/schedules/export-pdf',
+          data, // Kirim data langsung sebagai body
+          { 
+            responseType: 'blob',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+  
+        if (response.status !== 200) {
+          throw new Error('Failed to generate PDF');
+        }
+  
+        return response.data;
+      } catch (error) {
+        console.error('PDF export error:', error);
+        
+        // Jika response dalam format blob, kita perlu membacanya
+        if (error.response?.data instanceof Blob) {
+          const text = await error.response.data.text();
+          try {
+            const errorData = JSON.parse(text);
+            throw new Error(errorData.message || 'Failed to export PDF');
+          } catch (e) {
+            throw new Error('Failed to export PDF');
+          }
+        }
+        
+        throw new Error(error.response?.data?.message || error.message || 'Failed to export PDF');
+      }
+    },
   },
   shiftSettings: {
     get: async (branchCode) => {
@@ -468,7 +509,8 @@ const endpoints = {
           error: error.response?.data?.message || 'Failed to update shift settings'
         };
       }
-    }
+    },
+    
   },
 };
 

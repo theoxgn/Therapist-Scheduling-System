@@ -24,4 +24,7 @@ router.post('/copy-previous-week', scheduleController.copyPreviousWeek);
 // Validate schedule
 router.post('/validate', scheduleController.validateSchedule);
 
+//export to pdf
+router.post('/export-pdf', scheduleController.exportPDF);
+
 module.exports = router;

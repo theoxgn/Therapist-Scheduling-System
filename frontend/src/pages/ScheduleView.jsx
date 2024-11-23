@@ -1,161 +1,291 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import ScheduleGrid from '../components/ScheduleGrid';
-import WeekSelector from '../components/WeekSelector';
+import { format, addDays } from 'date-fns';
+import { useParams } from 'react-router-dom';
+import { Calendar, ChevronLeft, ChevronRight, FileDown, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
-function ScheduleView() {
+const SHIFTS = {
+  '1': { 
+    code: '1',
+    label: 'Morning', 
+    time: '09:00 - 18:00',
+    color: 'bg-blue-100',
+    textColor: 'text-blue-600'
+  },
+  'M': { 
+    code: 'M',
+    label: 'Middle', 
+    time: '11:30 - 20:30',
+    color: 'bg-green-100',
+    textColor: 'text-green-600'
+  },
+  '2': { 
+    code: '2',
+    label: 'Evening', 
+    time: '13:00 - 22:00',
+    color: 'bg-purple-100',
+    textColor: 'text-purple-600'
+  },
+  'X': { 
+    code: 'X',
+    label: 'Leave Request', 
+    time: 'Leave Request',
+    color: 'bg-yellow-100',
+    textColor: 'text-yellow-600'
+  }
+};
+
+const ShiftBadge = ({ code, className = '' }) => {
+  const shift = SHIFTS[code];
+  if (!shift) return null;
+  
+  return (
+    <span 
+      className={`
+        ${shift.color} ${shift.textColor}
+        px-3 py-1.5 rounded-md font-bold text-center
+        ${className}
+      `}
+    >
+      {code}
+    </span>
+  );
+};
+
+const ShiftLegend = () => (
+  <div className="flex gap-4 text-sm mb-6">
+    {Object.entries(SHIFTS).map(([code, shift]) => (
+      <div key={code} className="flex items-center gap-2">
+        <ShiftBadge code={code} />
+        <span className="text-gray-600">{shift.time}</span>
+      </div>
+    ))}
+  </div>
+);
+
+const ScheduleView = () => {
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [schedules, setSchedules] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [therapists, setTherapists] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const { branchCode } = useParams();
-  const navigate = useNavigate();
+  const [branch, setBranch] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
 
-  // Function to calculate date range
-  const getDateRange = useCallback((baseDate) => {
-    const startDate = new Date(baseDate);
-    startDate.setDate(startDate.getDate() - startDate.getDay());
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 13);
-    
-    return {
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
-    };
-  }, []);
-
-  // Memoize fetchSchedules function with error handling
-  const fetchSchedules = useCallback(async (dateRange) => {
-    setIsLoading(true);
-    setError(null);
-
+  // Fungsi untuk export PDF
+  const handleExportPDF = async () => {
     try {
-      // Validate branchCode
-      if (!branchCode) {
-        throw new Error('Branch code is required');
-      }
+      setIsExporting(true);
+      const dates = getDates();
+      const startDate = dates[0].toISOString().split('T')[0];
+      const endDate = dates[6].toISOString().split('T')[0];
 
-      const result = await api.schedules.getByDateRange(
+      console.log('Exporting PDF with params:', { branchCode, startDate, endDate }); // Debug log
+
+      const pdfBlob = await api.schedules.exportPDF({
         branchCode,
-        dateRange.startDate,
-        dateRange.endDate
-      );
+        startDate,
+        endDate
+      });
 
+      //link
+      const url = window.URL.createObjectURL(new Blob([pdfBlob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `schedule-${branchCode}-${startDate}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+  
+
+    } catch (err) {
+      console.error('Export error:', err);
+      setError('Failed to export schedule');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Fetch branch details
+  const fetchBranch = useCallback(async () => {
+    try {
+      const result = await api.branches.getOne(branchCode);
       if (result.success) {
-        setSchedules(result.data);
-      } else {
-        // Handle specific error cases
-        if (result.details?.status === 404) {
-          setError('Branch not found. Please check the branch code.');
-        } else if (result.details?.status === 401) {
-          // Handle unauthorized access
-          navigate('/login');
-        } else if (result.details?.status === 500) {
-          setError('Server error occurred. Please try again later.');
-        } else {
-          setError(result.error);
-        }
-
-        // Log error for debugging
-        console.error('Schedule fetch failed:', result.details);
+        setBranch(result.data);
       }
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
-      console.error('Schedule fetch error:', err);
+      console.error('Error fetching branch:', err);
+    }
+  }, [branchCode]);
+
+  const getDates = useCallback(() => {
+    const dates = [];
+    const startDate = new Date(currentDate);
+    startDate.setDate(startDate.getDate() - startDate.getDay());
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      dates.push(date);
+    }
+    return dates;
+  }, [currentDate]);
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const therapistsResult = await api.therapists.getByBranch(branchCode);
+      const dates = getDates();
+      const startDate = dates[0].toISOString().split('T')[0];
+      const endDate = dates[6].toISOString().split('T')[0];
+
+      const schedulesResult = await api.schedules.getByDateRange(
+        branchCode,
+        startDate,
+        endDate
+      );
+
+      if (therapistsResult.success && schedulesResult.success) {
+        setTherapists(therapistsResult.data);
+        setSchedules(schedulesResult.data);
+      }
+    } catch (err) {
+      setError('Failed to load schedule data');
     } finally {
       setIsLoading(false);
     }
-  }, [branchCode, navigate]);
+  }, [branchCode, getDates]);
 
-  // Initial fetch on mount and when date/branch changes
   useEffect(() => {
-    const dateRange = getDateRange(selectedDate);
-    fetchSchedules(dateRange);
-  }, [selectedDate, fetchSchedules, getDateRange]);
+    fetchBranch();
+    fetchData();
+  }, [fetchBranch, fetchData]);
 
-  const handleRetry = useCallback(() => {
-    const dateRange = getDateRange(selectedDate);
-    fetchSchedules(dateRange);
-  }, [fetchSchedules, getDateRange, selectedDate]);
+  const getTherapistShift = (therapistId, date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const schedule = schedules.find(s => 
+      s.therapistId === therapistId && 
+      s.date === dateStr
+    );
+    return schedule?.shift || '';
+  };
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-4">
-        <div className="flex justify-center items-center min-h-[200px]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        </div>
+      <div className="flex justify-center items-center min-h-[200px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
       </div>
     );
   }
 
   return (
     <div className="container mx-auto p-4">
-      {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="font-bold">Error</p>
-              <p className="text-sm">{error}</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleRetry}
-                className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded text-sm"
-              >
-                Retry
-              </button>
-              <button
-                className="text-red-400 hover:text-red-600"
-                onClick={() => setError(null)}
-              >
-                <span className="sr-only">Dismiss</span>
-                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
+      <div className="bg-white rounded-lg shadow-md">
+        <div className="p-4">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">Schedule View</h1>
+            <div className="text-sm text-gray-600">
+              {branch?.name} ({branchCode})
             </div>
           </div>
-        </div>
-      )}
+          <button
+                onClick={handleExportPDF}
+                disabled={isExporting}
+                className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
+              >
+                {isExporting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileDown className="w-4 h-4" />
+                )}
+                Export PDF
+              </button>
 
-      <div className="mb-6">
-        <WeekSelector 
-          selectedDate={selectedDate} 
-          onDateChange={setSelectedDate}
-        />
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={() => setCurrentDate(prev => addDays(prev, -7))}
+              className="p-2 hover:bg-gray-100 rounded"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-gray-500" />
+              <span className="font-medium text-lg">
+                {format(currentDate, 'MMMM d, yyyy')}
+              </span>
+            </div>
+
+            <button
+              onClick={() => setCurrentDate(prev => addDays(prev, 7))}
+              className="p-2 hover:bg-gray-100 rounded"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+
+          <ShiftLegend />
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="p-3 border-b bg-gray-50 text-left w-48">
+                  NAMA
+                </th>
+                {getDates().map(date => (
+                  <th 
+                    key={date.toISOString()} 
+                    className={`p-3 border-b text-center min-w-[120px] ${
+                      [0, 6].includes(date.getDay()) ? 'bg-blue-50' : 'bg-gray-50'
+                    }`}
+                  >
+                    <div className="font-medium">
+                      {format(date, 'EEE, MMM d')}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {[0, 6].includes(date.getDay()) ? 'Weekend' : 'Weekday'}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {therapists.map(therapist => (
+                <tr key={therapist.id} className="group">
+                  <td className="p-3 border-b font-medium bg-amber-100">
+                    {therapist.name}
+                  </td>
+                  {getDates().map(date => {
+                    const shift = getTherapistShift(therapist.id, date);
+                    return (
+                      <td 
+                        key={date.toISOString()}
+                        className="p-3 border-b border-r text-center"
+                      >
+                        {shift && <ShiftBadge code={shift} className="w-full" />}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {!isLoading && !error && schedules.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <p className="text-lg">No schedules found for this period</p>
-          <p className="mt-2">Try selecting a different date range.</p>
+      {error && (
+        <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
         </div>
-      ) : (
-        <ScheduleGrid 
-          schedules={schedules} 
-          selectedDate={selectedDate}
-          onUpdateSchedule={async (scheduleId, updateData) => {
-            const dateRange = getDateRange(selectedDate);
-            const result = await api.schedules.update(scheduleId, updateData);
-            if (result.success) {
-              await fetchSchedules(dateRange);
-            } else {
-              setError(result.error);
-            }
-          }}
-          onRequestLeave={async (leaveData) => {
-            const result = await api.schedules.requestLeave(leaveData);
-            if (result.success) {
-              const dateRange = getDateRange(selectedDate);
-              await fetchSchedules(dateRange);
-            }
-            return result;
-          }}
-        />
       )}
     </div>
   );
-}
+};
 
 export default ScheduleView;
