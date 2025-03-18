@@ -203,20 +203,125 @@ const ScheduleManagement = () => {
     }
   };
 
+  // const handleShiftClick = async (therapistId, date, currentShift) => {
+  //   const dateStr = format(date, 'yyyy-MM-dd');
+  //   const shiftCodes = Object.keys(SHIFTS);
+  //   const currentIndex = shiftCodes.indexOf(currentShift || '');
+  //   const nextShift = shiftCodes[(currentIndex + 1) % shiftCodes.length];
+
+  //   try {
+  //     const existingSchedule = schedules.find(s => 
+  //       s.therapistId === therapistId && 
+  //       s.date === dateStr
+  //     );
+
+  //     let result;
+      
+  //     if (existingSchedule) {
+  //       result = await api.schedules.update(existingSchedule.id, {
+  //         branchCode,
+  //         shift: nextShift,
+  //         date: dateStr,
+  //         therapistId
+  //       });
+        
+  //       if (!result.success) {
+  //         throw new Error(result.error || 'Failed to update schedule');
+  //       }
+  //     } else {
+  //       result = await api.schedules.create({
+  //         branchCode,
+  //         shift: nextShift,
+  //         date: dateStr,
+  //         therapistId
+  //       });
+        
+  //       if (!result.success) {
+  //         throw new Error(result.error || 'Failed to create schedule');
+  //       }
+  //     }
+      
+  //     await fetchData(); // Refresh data after successful update
+      
+  //   } catch (err) {
+  //     console.error('Schedule update error:', err);
+  //     setError(err.message || 'Failed to update shift');
+  //     // Add optional error handling feedback here
+  //   }
+  // };
+
   const handleShiftClick = async (therapistId, date, currentShift) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     const shiftCodes = Object.keys(SHIFTS);
     const currentIndex = shiftCodes.indexOf(currentShift || '');
     const nextShift = shiftCodes[(currentIndex + 1) % shiftCodes.length];
-
+  
     try {
       const existingSchedule = schedules.find(s => 
         s.therapistId === therapistId && 
         s.date === dateStr
       );
-
+      
       let result;
       
+      // If setting to X (Leave Request), let's also set adjacent days
+      if (nextShift === 'X') {
+        // Set up date objects for the day before and after
+        const prevDate = new Date(date);
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevDateStr = format(prevDate, 'yyyy-MM-dd');
+        
+        const nextDate = new Date(date);
+        nextDate.setDate(nextDate.getDate() + 1);
+        const nextDateStr = format(nextDate, 'yyyy-MM-dd');
+        
+        // Find existing schedules for adjacent days
+        const prevSchedule = schedules.find(s => 
+          s.therapistId === therapistId && 
+          s.date === prevDateStr
+        );
+        
+        const nextSchedule = schedules.find(s => 
+          s.therapistId === therapistId && 
+          s.date === nextDateStr
+        );
+        
+        // Update or create schedule for previous day (shift 1)
+        if (prevSchedule) {
+          await api.schedules.update(prevSchedule.id, {
+            branchCode,
+            shift: '1',
+            date: prevDateStr,
+            therapistId
+          });
+        } else {
+          await api.schedules.create({
+            branchCode,
+            shift: '1',
+            date: prevDateStr,
+            therapistId
+          });
+        }
+        
+        // Update or create schedule for next day (shift 2)
+        if (nextSchedule) {
+          await api.schedules.update(nextSchedule.id, {
+            branchCode,
+            shift: '2',
+            date: nextDateStr,
+            therapistId
+          });
+        } else {
+          await api.schedules.create({
+            branchCode,
+            shift: '2',
+            date: nextDateStr,
+            therapistId
+          });
+        }
+      }
+      
+      // Update the current day's schedule
       if (existingSchedule) {
         result = await api.schedules.update(existingSchedule.id, {
           branchCode,
@@ -246,7 +351,6 @@ const ScheduleManagement = () => {
     } catch (err) {
       console.error('Schedule update error:', err);
       setError(err.message || 'Failed to update shift');
-      // Add optional error handling feedback here
     }
   };
 
