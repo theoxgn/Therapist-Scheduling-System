@@ -492,6 +492,61 @@ const scheduleController = {
       });
     }
   },
+  async clearAllSchedules(req, res) {
+    try {
+      const { branchCode } = req.body;
+      
+      if (!branchCode) {
+        return res.status(400).json({
+          success: false,
+          message: 'Branch code is required'
+        });
+      }
+
+      console.log(`Attempting to clear all schedules for branch: ${branchCode}`);
+
+      // Find all schedules for the branch to count them
+      const schedulesToDelete = await Schedule.findAll({
+        include: [{
+          model: Therapist,
+          where: { branchCode },
+          attributes: ['name']
+        }]
+      });
+
+      if (schedulesToDelete.length === 0) {
+        return res.json({
+          success: true,
+          message: 'No schedules found for this branch'
+        });
+      }
+
+      // Delete all schedules for the branch
+      const deletedCount = await Schedule.destroy({
+        where: {
+          id: {
+            [Op.in]: schedulesToDelete.map(s => s.id)
+          }
+        }
+      });
+
+      console.log(`Successfully deleted ${deletedCount} schedules for branch ${branchCode}`);
+
+      return res.json({
+        success: true,
+        message: `Successfully cleared all schedules (${deletedCount} entries) for branch ${branchCode}`,
+        count: deletedCount
+      });
+
+    } catch (error) {
+      console.error('Clear all schedules error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to clear all schedules',
+        error: error.message
+      });
+    }
+  },
 };
 
 module.exports = scheduleController;

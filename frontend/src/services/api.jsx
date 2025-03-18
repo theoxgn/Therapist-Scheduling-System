@@ -430,6 +430,25 @@ const endpoints = {
       }
     },
 
+    clearAll: async (branchCode) => {
+      try {
+        const response = await api.post('/schedules/clear-all', {
+          branchCode
+        });
+        
+        return { 
+          success: true,
+          data: response.data
+        };
+      } catch (error) {
+        console.error('Clear all schedules error:', error.response || error);
+        return {
+          success: false,
+          error: error.response?.data?.message || 'Failed to clear all schedules'
+        };
+      }
+    },
+
     validateSchedule: async (scheduleData) => {
       try {
         const response = await api.post('/schedules/validate', scheduleData);

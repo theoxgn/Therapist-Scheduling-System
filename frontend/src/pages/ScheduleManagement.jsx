@@ -65,7 +65,7 @@ const ShiftLegend = () => (
   </div>
 );
 
-const QuickActions = ({ onClearDay, onCopyPrevious, onOpenSettings }) => (
+const QuickActions = ({ onClearDay, onClearAllSchedules, onCopyPrevious, onOpenSettings }) => (
   <div className="grid grid-cols-3 gap-4 mb-6">
     <button
       onClick={onClearDay}
@@ -73,6 +73,15 @@ const QuickActions = ({ onClearDay, onCopyPrevious, onOpenSettings }) => (
     >
       <Trash2 className="w-5 h-5 text-gray-600" />
       <span className="text-sm">Clear Day</span>
+    </button>
+    <button
+      onClick={onClearAllSchedules}
+      className="flex flex-col items-center gap-2 p-3 border rounded hover:bg-gray-50 text-red-600"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      </svg>
+      <span className="text-sm">Clear All</span>
     </button>
     <button
       onClick={onCopyPrevious}
@@ -100,6 +109,7 @@ const ScheduleManagement = () => {
   const { branchCode } = useParams();
   const [branch, setBranch] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [selectedCell, setSelectedCell] = useState(null);
 
   // Fetch branch details
   const fetchBranch = useCallback(async () => {
@@ -193,6 +203,36 @@ const ScheduleManagement = () => {
     }
   };
 
+  const handleClearAllSchedules = async () => {
+    // Show confirmation dialog
+    if (!window.confirm('Are you sure you want to clear ALL schedules for this branch? This action cannot be undone.')) {
+      return;
+    }
+  
+    try {
+      setIsLoading(true);
+      
+      // Call API to clear all schedules for the branch
+      const result = await api.schedules.clearAll(branchCode);
+      
+      if (result.success) {
+        // Show success message
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+        
+        // Refresh the data
+        await fetchData();
+      } else {
+        setError(result.error || 'Failed to clear all schedules');
+      }
+    } catch (err) {
+      console.error('Clear all schedules error:', err);
+      setError('Failed to clear all schedules');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleCopyPrevious = async () => {
     if (!window.confirm('Copy schedules from previous week?')) return;
     try {
@@ -203,20 +243,203 @@ const ScheduleManagement = () => {
     }
   };
 
+  // Add this useEffect to handle keyboard events
+  useEffect(() => {
+    const handleKeyDown = async (e) => {
+      // Only proceed if a cell is selected
+      if (!selectedCell) return;
+      
+      const { therapistId, date } = selectedCell;
+      const dateStr = format(date, 'yyyy-MM-dd');
+      
+      // Maps key press to shift code
+      const validKeys = {
+        '1': '1',
+        '2': '2',
+        'm': 'M',
+        'M': 'M',
+        'x': 'X',
+        'X': 'X'
+      };
+      
+      const keyPressed = e.key;
+      
+      // Check if the pressed key is valid
+      if (validKeys[keyPressed]) {
+        const newShift = validKeys[keyPressed];
+        
+        try {
+          const existingSchedule = schedules.find(s => 
+            s.therapistId === therapistId && 
+            s.date === dateStr
+          );
+          
+          let result;
+          
+          // If setting to X (Leave Request), handle the special pattern
+          if (newShift === 'X') {
+            // Set up dates for the day before and after
+            const prevDate = new Date(date);
+            prevDate.setDate(prevDate.getDate() - 1);
+            const prevDateStr = format(prevDate, 'yyyy-MM-dd');
+            
+            const nextDate = new Date(date);
+            nextDate.setDate(nextDate.getDate() + 1);
+            const nextDateStr = format(nextDate, 'yyyy-MM-dd');
+            
+            // Find existing schedules for adjacent days
+            const prevSchedule = schedules.find(s => 
+              s.therapistId === therapistId && 
+              s.date === prevDateStr
+            );
+            
+            const nextSchedule = schedules.find(s => 
+              s.therapistId === therapistId && 
+              s.date === nextDateStr
+            );
+            
+            // Update or create schedule for previous day (shift 1)
+            if (prevSchedule) {
+              await api.schedules.update(prevSchedule.id, {
+                branchCode,
+                shift: '1',
+                date: prevDateStr,
+                therapistId
+              });
+            } else {
+              await api.schedules.create({
+                branchCode,
+                shift: '1',
+                date: prevDateStr,
+                therapistId
+              });
+            }
+            
+            // Update or create schedule for next day (shift 2)
+            if (nextSchedule) {
+              await api.schedules.update(nextSchedule.id, {
+                branchCode,
+                shift: '2',
+                date: nextDateStr,
+                therapistId
+              });
+            } else {
+              await api.schedules.create({
+                branchCode,
+                shift: '2',
+                date: nextDateStr,
+                therapistId
+              });
+            }
+          }
+          
+          // Update current day's schedule
+          if (existingSchedule) {
+            result = await api.schedules.update(existingSchedule.id, {
+              branchCode,
+              shift: newShift,
+              date: dateStr,
+              therapistId
+            });
+          } else {
+            result = await api.schedules.create({
+              branchCode,
+              shift: newShift,
+              date: dateStr,
+              therapistId
+            });
+          }
+          
+          await fetchData(); // Refresh data after successful update
+          // Optionally, keep the selection or clear it
+          // setSelectedCell(null);
+        } catch (err) {
+          console.error('Schedule update error:', err);
+          setError(err.message || 'Failed to update shift');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Cleanup function to remove event listener
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedCell, schedules, branchCode]); // Include all dependencies
+
   // const handleShiftClick = async (therapistId, date, currentShift) => {
   //   const dateStr = format(date, 'yyyy-MM-dd');
   //   const shiftCodes = Object.keys(SHIFTS);
   //   const currentIndex = shiftCodes.indexOf(currentShift || '');
   //   const nextShift = shiftCodes[(currentIndex + 1) % shiftCodes.length];
-
+  
   //   try {
   //     const existingSchedule = schedules.find(s => 
   //       s.therapistId === therapistId && 
   //       s.date === dateStr
   //     );
-
+      
   //     let result;
       
+  //     // If setting to X (Leave Request), let's also set adjacent days
+  //     if (nextShift === 'X') {
+  //       // Set up date objects for the day before and after
+  //       const prevDate = new Date(date);
+  //       prevDate.setDate(prevDate.getDate() - 1);
+  //       const prevDateStr = format(prevDate, 'yyyy-MM-dd');
+        
+  //       const nextDate = new Date(date);
+  //       nextDate.setDate(nextDate.getDate() + 1);
+  //       const nextDateStr = format(nextDate, 'yyyy-MM-dd');
+        
+  //       // Find existing schedules for adjacent days
+  //       const prevSchedule = schedules.find(s => 
+  //         s.therapistId === therapistId && 
+  //         s.date === prevDateStr
+  //       );
+        
+  //       const nextSchedule = schedules.find(s => 
+  //         s.therapistId === therapistId && 
+  //         s.date === nextDateStr
+  //       );
+        
+  //       // Update or create schedule for previous day (shift 1)
+  //       if (prevSchedule) {
+  //         await api.schedules.update(prevSchedule.id, {
+  //           branchCode,
+  //           shift: '1',
+  //           date: prevDateStr,
+  //           therapistId
+  //         });
+  //       } else {
+  //         await api.schedules.create({
+  //           branchCode,
+  //           shift: '1',
+  //           date: prevDateStr,
+  //           therapistId
+  //         });
+  //       }
+        
+  //       // Update or create schedule for next day (shift 2)
+  //       if (nextSchedule) {
+  //         await api.schedules.update(nextSchedule.id, {
+  //           branchCode,
+  //           shift: '2',
+  //           date: nextDateStr,
+  //           therapistId
+  //         });
+  //       } else {
+  //         await api.schedules.create({
+  //           branchCode,
+  //           shift: '2',
+  //           date: nextDateStr,
+  //           therapistId
+  //         });
+  //       }
+  //     }
+      
+  //     // Update the current day's schedule
   //     if (existingSchedule) {
   //       result = await api.schedules.update(existingSchedule.id, {
   //         branchCode,
@@ -246,111 +469,17 @@ const ScheduleManagement = () => {
   //   } catch (err) {
   //     console.error('Schedule update error:', err);
   //     setError(err.message || 'Failed to update shift');
-  //     // Add optional error handling feedback here
   //   }
   // };
 
-  const handleShiftClick = async (therapistId, date, currentShift) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const shiftCodes = Object.keys(SHIFTS);
-    const currentIndex = shiftCodes.indexOf(currentShift || '');
-    const nextShift = shiftCodes[(currentIndex + 1) % shiftCodes.length];
-  
-    try {
-      const existingSchedule = schedules.find(s => 
-        s.therapistId === therapistId && 
-        s.date === dateStr
-      );
-      
-      let result;
-      
-      // If setting to X (Leave Request), let's also set adjacent days
-      if (nextShift === 'X') {
-        // Set up date objects for the day before and after
-        const prevDate = new Date(date);
-        prevDate.setDate(prevDate.getDate() - 1);
-        const prevDateStr = format(prevDate, 'yyyy-MM-dd');
-        
-        const nextDate = new Date(date);
-        nextDate.setDate(nextDate.getDate() + 1);
-        const nextDateStr = format(nextDate, 'yyyy-MM-dd');
-        
-        // Find existing schedules for adjacent days
-        const prevSchedule = schedules.find(s => 
-          s.therapistId === therapistId && 
-          s.date === prevDateStr
-        );
-        
-        const nextSchedule = schedules.find(s => 
-          s.therapistId === therapistId && 
-          s.date === nextDateStr
-        );
-        
-        // Update or create schedule for previous day (shift 1)
-        if (prevSchedule) {
-          await api.schedules.update(prevSchedule.id, {
-            branchCode,
-            shift: '1',
-            date: prevDateStr,
-            therapistId
-          });
-        } else {
-          await api.schedules.create({
-            branchCode,
-            shift: '1',
-            date: prevDateStr,
-            therapistId
-          });
-        }
-        
-        // Update or create schedule for next day (shift 2)
-        if (nextSchedule) {
-          await api.schedules.update(nextSchedule.id, {
-            branchCode,
-            shift: '2',
-            date: nextDateStr,
-            therapistId
-          });
-        } else {
-          await api.schedules.create({
-            branchCode,
-            shift: '2',
-            date: nextDateStr,
-            therapistId
-          });
-        }
-      }
-      
-      // Update the current day's schedule
-      if (existingSchedule) {
-        result = await api.schedules.update(existingSchedule.id, {
-          branchCode,
-          shift: nextShift,
-          date: dateStr,
-          therapistId
-        });
-        
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to update schedule');
-        }
-      } else {
-        result = await api.schedules.create({
-          branchCode,
-          shift: nextShift,
-          date: dateStr,
-          therapistId
-        });
-        
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to create schedule');
-        }
-      }
-      
-      await fetchData(); // Refresh data after successful update
-      
-    } catch (err) {
-      console.error('Schedule update error:', err);
-      setError(err.message || 'Failed to update shift');
+  const handleCellClick = (therapistId, date) => {
+    // Toggle selection if clicking the same cell, otherwise select the new cell
+    if (selectedCell && 
+        selectedCell.therapistId === therapistId && 
+        format(selectedCell.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')) {
+      setSelectedCell(null);
+    } else {
+      setSelectedCell({ therapistId, date });
     }
   };
 
@@ -427,11 +556,19 @@ const ScheduleManagement = () => {
 
           <QuickActions 
             onClearDay={handleClearDay}
+            onClearAllSchedules={handleClearAllSchedules}
             onCopyPrevious={handleCopyPrevious}
             onOpenSettings={() => {}}
           />
 
           <ShiftLegend />
+        </div>
+
+        <div className="mb-4 p-3 bg-gray-50 rounded">
+          <p className="text-sm text-gray-600">
+            <strong>Keyboard Controls:</strong> Click on a cell and press 1, 2, M, or X to assign shifts. 
+            When setting X (Leave), shift 1 will be auto-assigned before and shift 2 after.
+          </p>
         </div>
 
         <div className="overflow-x-auto">
@@ -469,8 +606,14 @@ const ScheduleManagement = () => {
                     return (
                       <td 
                         key={date.toISOString()}
-                        className="p-3 border-b border-r text-center"
-                        onClick={() => handleShiftClick(therapist.id, date, shift)}
+                        className={`p-3 border-b border-r text-center ${
+                          selectedCell && 
+                          selectedCell.therapistId === therapist.id && 
+                          format(selectedCell.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd') 
+                            ? 'bg-blue-100' // Highlight selected cell
+                            : ''
+                        }`}
+                        onClick={() => handleCellClick(therapist.id, date)}
                       >
                         {shift && <ShiftBadge code={shift} className="w-full" />}
                       </td>

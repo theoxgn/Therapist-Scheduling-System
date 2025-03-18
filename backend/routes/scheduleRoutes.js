@@ -27,4 +27,7 @@ router.post('/validate', scheduleController.validateSchedule);
 //export to pdf
 router.post('/export-pdf', scheduleController.exportPDF);
 
+// clear all day
+router.post('/clear-all', scheduleController.clearAllSchedules);
+
 module.exports = router;
