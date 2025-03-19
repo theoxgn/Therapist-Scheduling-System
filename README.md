@@ -129,3 +129,126 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Lucide React for icons
 - Tailwind CSS for styling
 - React development team
+
+```
+therapist-scheduling
+├─ README.md
+├─ backend
+│  ├─ .env
+│  ├─ .sequelizerc
+│  ├─ config
+│  │  ├─ config.js
+│  │  └─ database.js
+│  ├─ controllers
+│  │  ├─ authController.js
+│  │  ├─ branchController.js
+│  │  ├─ scheduleController.js
+│  │  └─ therapistController.js
+│  ├─ create-admin-user.js
+│  ├─ middlewares
+│  │  ├─ auth.js
+│  │  └─ validation.js
+│  ├─ migrations
+│  ├─ models
+│  │  ├─ Branch.js
+│  │  ├─ Schedule.js
+│  │  ├─ Therapist.js
+│  │  ├─ User.js
+│  │  └─ index.js
+│  ├─ package-lock.json
+│  ├─ package.json
+│  ├─ routes
+│  │  ├─ authRoutes.js
+│  │  ├─ branchRoutes.js
+│  │  ├─ index.js
+│  │  ├─ scheduleRoutes.js
+│  │  └─ therapistRoutes.js
+│  ├─ script-hash-password.js
+│  ├─ server.js
+│  ├─ src
+│  │  ├─ config
+│  │  │  └─ database.js
+│  │  ├─ migrations
+│  │  │  ├─ 20241122142054-create-branch.js
+│  │  │  ├─ 20241122142100-create-therapist.js
+│  │  │  └─ 20241122142106-create-schedule.js
+│  │  ├─ models
+│  │  │  └─ index.js
+│  │  └─ seeders
+│  │     ├─ 20241122142346-demo-branches.js
+│  │     ├─ 20241122142405-demo-therapists.js
+│  │     └─ 20241122142413-demo-schedules.js
+│  └─ utils
+│     └─ scheduleValidation.js
+├─ frontend
+│  ├─ .DS_Store
+│  ├─ README.md
+│  ├─ package-lock.json
+│  ├─ package.json
+│  ├─ postcss.config.js
+│  ├─ public
+│  │  ├─ favicon.ico
+│  │  ├─ index.html
+│  │  ├─ logo192.png
+│  │  ├─ logo512.png
+│  │  ├─ manifest.json
+│  │  └─ robots.txt
+│  ├─ src
+│  │  ├─ App.css
+│  │  ├─ App.jsx
+│  │  ├─ Routes.jsx
+│  │  ├─ components
+│  │  │  ├─ AddTherapistModal.jsx
+│  │  │  ├─ BranchCard.jsx
+│  │  │  ├─ ErrorBoundary.jsx
+│  │  │  ├─ ErrorMessage.jsx
+│  │  │  ├─ LeaveRequestModal.jsx
+│  │  │  ├─ LoadingSpinner.jsx
+│  │  │  ├─ NavigationBar.jsx
+│  │  │  ├─ PrivateRoute.jsx
+│  │  │  ├─ QuickActions.jsx
+│  │  │  ├─ Register.jsx
+│  │  │  ├─ ScheduleGrid.jsx
+│  │  │  ├─ ScheduleGridManagement.jsx
+│  │  │  ├─ ScheduleGuide.jsx
+│  │  │  ├─ ShiftCell.jsx
+│  │  │  ├─ TherapistCard.jsx
+│  │  │  ├─ WeekSelector.jsx
+│  │  │  └─ forms
+│  │  │     ├─ FormCheckbox.jsx
+│  │  │     ├─ FormInput.jsx
+│  │  │     └─ FormSelect.jsx
+│  │  ├─ context
+│  │  │  ├─ AuthContext.jsx
+│  │  │  ├─ ScheduleContext.jsx
+│  │  │  └─ ThemeContext.jsx
+│  │  ├─ index.css
+│  │  ├─ index.js
+│  │  ├─ logo.svg
+│  │  ├─ pages
+│  │  │  ├─ AddBranch.jsx
+│  │  │  ├─ BranchList.jsx
+│  │  │  ├─ Login.jsx
+│  │  │  ├─ ScheduleManagement.jsx
+│  │  │  ├─ ScheduleView.jsx
+│  │  │  ├─ Settings.jsx
+│  │  │  ├─ ShiftSettings.jsx
+│  │  │  └─ TherapistManagement.jsx
+│  │  ├─ reportWebVitals.js
+│  │  ├─ services
+│  │  │  └─ api.jsx
+│  │  └─ utils
+│  │     ├─ ApiErrorBoundary.jsx
+│  │     ├─ ConfirmationDialog.jsx
+│  │     ├─ DateUtils.jsx
+│  │     ├─ ErrorHandler.jsx
+│  │     ├─ ValidationUtils.jsx
+│  │     └─ apiErrorHandler.jsx
+│  └─ tailwind.config.js
+└─ ss
+   ├─ a.png
+   ├─ b.png
+   ├─ c.png
+   └─ d.png
+
+```

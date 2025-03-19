@@ -24,16 +24,7 @@ const NavigationBar = () => {
       icon: <Building2 className="w-5 h-5" />,
       label: "Branches"
     },
-    // {
-    //   to: "/schedule-overview",
-    //   icon: <Calendar className="w-5 h-5" />,
-    //   label: "Schedule Overview"
-    // },
-    // {
-    //   to: "/therapists",
-    //   icon: <Users className="w-5 h-5" />,
-    //   label: "Therapists"
-    // }
+    
   ];
 
   const isActive = (path) => {
@@ -84,17 +75,6 @@ const NavigationBar = () => {
 
           {/* User Menu & Settings (Desktop) */}
           <div className="hidden sm:flex items-center space-x-4">
-            <Link
-              to="/settings"
-              className={`p-2 rounded-full ${
-                isActive('/settings')
-                  ? 'bg-gray-100 text-blue-600'
-                  : 'text-gray-500 hover:bg-gray-100'
-              }`}
-            >
-              <Settings className="w-5 h-5" />
-            </Link>
-
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
@@ -162,18 +142,6 @@ const NavigationBar = () => {
                 <span className="ml-2">{link.label}</span>
               </Link>
             ))}
-            <Link
-              to="/settings"
-              className={`flex items-center px-4 py-2 text-base font-medium ${
-                isActive('/settings')
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-500 hover:bg-gray-50'
-              }`}
-              onClick={() => setIsOpen(false)}
-            >
-              <Settings className="w-5 h-5" />
-              <span className="ml-2">Settings</span>
-            </Link>
           </div>
           <div className="pt-4 pb-3 border-t border-gray-200">
             <div className="px-4 py-2">

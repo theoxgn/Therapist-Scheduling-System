@@ -6,7 +6,6 @@ import BranchList from './pages/BranchList';
 import ScheduleView from './pages/ScheduleView';
 import ScheduleManagement from './pages/ScheduleManagement';
 import TherapistManagement from './pages/TherapistManagement';
-import Settings from './pages/Settings';
 import ShiftSettings from './pages/ShiftSettings'; // Add this import
 import PrivateRoute from './components/PrivateRoute';
 import NavigationBar from './components/NavigationBar';
@@ -52,13 +51,6 @@ const AppRoutes = () => {
           <Route path="/therapists/:branchCode" element={
             <PrivateRoute>
               <TherapistManagement />
-            </PrivateRoute>
-          } />
-
-          {/* Settings */}
-          <Route path="/settings" element={
-            <PrivateRoute>
-              <Settings />
             </PrivateRoute>
           } />
 
