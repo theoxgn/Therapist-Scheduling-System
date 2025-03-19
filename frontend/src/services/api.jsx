@@ -522,7 +522,10 @@ const endpoints = {
 
     create: async (branchCode, settings) => {
       try {
-        const response = await api.post(`/branches/${branchCode}/shift-settings`, settings);
+        const response = await api.post(`/branches/${branchCode}/shift-settings`, {
+          ...settings,
+          settings: { type: 'custom' } 
+        });
         return { success: true, data: response.data };
       } catch (error) {
         return {
@@ -534,7 +537,10 @@ const endpoints = {
 
     update: async (branchCode, settings) => {
       try {
-        const response = await api.put(`/branches/${branchCode}/shift-settings`, settings);
+        const response = await api.put(`/branches/${branchCode}/shift-settings`, {
+          ...settings,
+          settings: { type: 'custom' } 
+        });
         return { success: true, data: response.data };
       } catch (error) {
         return {

@@ -80,13 +80,15 @@ const ShiftSettings = () => {
 
       // Fetch shift settings
       const settingsResult = await api.shiftSettings.get(branchCode);
-      console.log(settingsResult.data.settings.type)
+      
       if (settingsResult.success) {
-        if (settingsResult.data.settings.type == 'default') {
-          setSettings(settingsResult.data);
+        // Check if we have default settings or custom settings
+        const settingsData = settingsResult.data;
+        setSettings(settingsData);
+        console.log(settingsData.settings.type)
+        if (settingsData.settings && settingsData.settings.type === 'default') {
           setSettingsExist(false);
         } else {
-          // Settings don't exist yet, but we'll use the default values already set
           setSettingsExist(true);
         }
       }
