@@ -167,6 +167,73 @@ const ValidationMessage = ({ message, type = 'warning' }) => {
   );
 };
 
+const ValidationTooltip = ({ errors, children }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  
+  if (!errors || errors.length === 0) {
+    return children;
+  }
+  
+  return (
+    <div 
+      className="relative"
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      {children}
+      {isVisible && (
+        <div className="absolute z-50 bg-white border border-yellow-300 shadow-lg rounded-md p-3 min-w-[250px] max-w-xs left-1/2 transform -translate-x-1/2 top-full mt-1">
+          <h4 className="font-medium text-yellow-800 mb-1 flex items-center gap-1 text-sm">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+              />
+            </svg>
+            <span>Validation Issues</span>
+          </h4>
+          <ul className="text-xs text-yellow-700 list-disc pl-4 max-h-40 overflow-y-auto">
+            {errors.map((error, index) => (
+              <li key={index} className="mb-1">{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Cell tooltip for showing shift-specific validation issues
+const CellValidationTooltip = ({ errors, children }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  
+  if (!errors || errors.length === 0) {
+    return children;
+  }
+  
+  return (
+    <div 
+      className="relative"
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      {children}
+      {isVisible && (
+        <div className="absolute z-50 bg-white border border-red-300 shadow-lg rounded-md p-2 min-w-[200px] left-1/2 transform -translate-x-1/2 top-full mt-1 text-xs">
+          <ul className="text-red-700 list-disc pl-4">
+            {errors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 const ScheduleManagement = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [schedules, setSchedules] = useState([]);
@@ -1051,22 +1118,21 @@ const ScheduleManagement = () => {
         </div>
 
         <div className="mb-4 p-3 bg-gray-50 rounded">
-        {/* Success Message */}
-        {showSuccess && <SuccessMessage />}
+          {/* Success Message */}
+          {showSuccess && <SuccessMessage />}
 
-        {error && (
-          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            {error}
-            <button 
-              className="float-right text-red-700"
-              onClick={() => setError(null)}
-            >
-              &times;
-            </button>
-          </div>
-        )}
+          {error && (
+            <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+              <button 
+                className="float-right text-red-700"
+                onClick={() => setError(null)}
+              >
+                &times;
+              </button>
+            </div>
+          )}
         </div>
-
 
         {isBulkOperation && (
           <div className="flex justify-center items-center p-4">
@@ -1075,11 +1141,11 @@ const ScheduleManagement = () => {
           </div>
         )}
 
-        {/* Show validation error summary if there are errors */}
+        {/* Condensed validation issues summary */}
         {Object.keys(validationErrors).length > 0 && (
-          <div className="p-4 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <h3 className="text-yellow-800 font-medium mb-2 flex items-center gap-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="p-3 mb-2 bg-yellow-50 border border-yellow-200 rounded-lg mx-4">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path 
                   strokeLinecap="round" 
                   strokeLinejoin="round" 
@@ -1087,19 +1153,10 @@ const ScheduleManagement = () => {
                   d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
                 />
               </svg>
-              <span>Schedule Validation Issues</span>
-            </h3>
-            <p className="text-sm text-yellow-700 mb-2">
-              The current schedule has some issues based on your shift settings. These don't prevent saving, but you may want to address them:
-            </p>
-            <ul className="text-sm text-yellow-700 list-disc pl-5 max-h-32 overflow-y-auto">
-              {Object.values(validationErrors).slice(0, 5).map((error, index) => (
-                <li key={index}>{error}</li>
-              ))}
-              {Object.values(validationErrors).length > 5 && (
-                <li>...and {Object.values(validationErrors).length - 5} more issues</li>
-              )}
-            </ul>
+              <span className="text-sm text-yellow-700">
+                Found {Object.keys(validationErrors).length} validation issues. Hover over dates or cells with warning indicators to see details.
+              </span>
+            </div>
           </div>
         )}
 
@@ -1124,25 +1181,27 @@ const ScheduleManagement = () => {
                         [0, 6].includes(date.getDay()) ? 'bg-blue-50' : 'bg-gray-50'
                       } ${hasErrors ? 'border-yellow-300' : ''}`}
                     >
-                      <div className="font-medium">
-                        {format(date, 'EEE, MMM d')}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {[0, 6].includes(date.getDay()) ? 'Weekend' : 'Weekday'}
-                      </div>
-                      {hasErrors && (
-                        <div className="text-xs text-yellow-600 mt-1 flex items-center justify-center gap-1">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path 
-                              strokeLinecap="round" 
-                              strokeLinejoin="round" 
-                              strokeWidth={2} 
-                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
-                            />
-                          </svg>
-                          <span>{dateErrors.length} issues</span>
+                      <ValidationTooltip errors={dateErrors}>
+                        <div className="font-medium">
+                          {format(date, 'EEE, MMM d')}
                         </div>
-                      )}
+                        <div className="text-xs text-gray-500">
+                          {[0, 6].includes(date.getDay()) ? 'Weekend' : 'Weekday'}
+                        </div>
+                        {hasErrors && (
+                          <div className="text-xs text-yellow-600 mt-1 flex items-center justify-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={2} 
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                              />
+                            </svg>
+                            <span>{dateErrors.length} issues</span>
+                          </div>
+                        )}
+                      </ValidationTooltip>
                     </th>
                   );
                 })}
@@ -1158,17 +1217,20 @@ const ScheduleManagement = () => {
                     <td className={`p-3 border-b font-medium sticky left-0 ${
                       hasTherapistErrors ? 'bg-amber-200' : 'bg-amber-100'
                     }`}>
-                      <div className="flex items-center justify-between">
-                        <span>{therapist.name}</span>
-                        {therapist.gender === 'male' && (
-                          <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded">M</span>
-                        )}
-                      </div>
-                      {hasTherapistErrors && (
-                        <div className="text-xs text-amber-800 mt-1">
-                          {therapistErrors[0]}
+                      <ValidationTooltip errors={therapistErrors}>
+                        <div className="flex items-center justify-between">
+                          <span>{therapist.name}</span>
+                          {therapist.gender === 'male' && (
+                            <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded">M</span>
+                          )}
                         </div>
-                      )}
+                        {hasTherapistErrors && (
+                          <div className="text-xs text-amber-800 mt-1">
+                            {therapistErrors[0]}
+                            {therapistErrors.length > 1 && ` (+${therapistErrors.length - 1} more)`}
+                          </div>
+                        )}
+                      </ValidationTooltip>
                     </td>
                     {getDates().map(date => {
                       const shift = getTherapistShift(therapist.id, date);
@@ -1182,7 +1244,8 @@ const ScheduleManagement = () => {
                       const cellErrorKeys = Object.keys(validationErrors).filter(key => 
                         key.includes(dateStr) && key.includes(shift) && !key.includes('min') && !key.includes('max')
                       );
-                      const hasCellError = cellErrorKeys.length > 0;
+                      const cellErrors = cellErrorKeys.map(key => validationErrors[key]);
+                      const hasCellError = cellErrors.length > 0;
                       
                       return (
                         <td 
