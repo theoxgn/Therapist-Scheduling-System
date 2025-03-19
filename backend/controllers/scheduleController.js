@@ -303,17 +303,17 @@ const scheduleController = {
   async exportPDF(req, res) {
     try {
       const { branchCode, startDate, endDate } = req.body;
-
-      // Validasi input
+  
+      // Validate input
       if (!branchCode || !startDate || !endDate) {
         return res.status(400).json({
           success: false,
           message: 'Branch code, start date, and end date are required'
         });
       }
-
+  
       console.log('Processing PDF export request:', { branchCode, startDate, endDate }); // Debug log
-
+  
       // Fetch schedules with therapist details
       const schedules = await Schedule.findAll({
         include: [{
@@ -331,22 +331,35 @@ const scheduleController = {
           [Therapist, 'name', 'ASC']
         ]
       });
-
-      // Group therapists
-      const therapists = [...new Set(schedules.map(s => s.Therapist))];
-
+  
+      // Get unique therapists
+      const therapistMap = new Map();
+      schedules.forEach(schedule => {
+        if (!therapistMap.has(schedule.Therapist.id)) {
+          therapistMap.set(schedule.Therapist.id, schedule.Therapist);
+        }
+      });
+      
+      const uniqueTherapists = Array.from(therapistMap.values());
+      uniqueTherapists.sort((a, b) => a.name.localeCompare(b.name));
+  
+      // Get dates for the week
+      const dates = [];
+      let currentDate = new Date(startDate);
+      const endDateObj = new Date(endDate);
+      
+      while (currentDate <= endDateObj) {
+        dates.push(new Date(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+  
       // Create PDF
       const doc = new PDFDocument({
         size: 'A4',
         layout: 'landscape',
-        margins: {
-          top: 30,
-          bottom: 30,
-          left: 40,
-          right: 40
-        }
+        margin: 30
       });
-
+  
       // Set response headers
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(
@@ -356,133 +369,220 @@ const scheduleController = {
       
       // Pipe the PDF document to the response
       doc.pipe(res);
-
-      // Header
-      doc.fontSize(16).font('Helvetica-Bold')
-        .text(`Schedule - ${branchCode}`, { align: 'center' });
+  
+      // Colors
+      const colors = {
+        headerBg: '#f8fafc', // bg-slate-50
+        headerText: '#1e293b', // text-slate-800
+        border: '#cbd5e1', // border-slate-300
+        nameBg: '#fef9c3', // bg-yellow-100
+        nameText: '#713f12', // text-yellow-900
+        weekendBg: '#e0f2fe', // bg-sky-100
+        alternateRowBg: '#f1f5f9', // bg-slate-100
+        footerText: '#64748b' // text-slate-500
+      };
+  
+      // Add header
+      doc.fontSize(20)
+        .font('Helvetica-Bold')
+        .fillColor('#000000')
+        .text(`SCHEDULE - ${branchCode}`, { align: 'center' });
       
       doc.fontSize(12)
-        .text(`Period: ${format(new Date(startDate), 'MMM d, yyyy')} - ${format(new Date(endDate), 'MMM d, yyyy')}`, {
-          align: 'center'
-        });
-
-      // Add margin after header
-      doc.moveDown(2);
-
-      // Table settings
-      const startX = 40;
-      const startY = 120;
-      const colWidth = 90;
-      const rowHeight = 30;
+        .font('Helvetica')
+        .text(`Period: ${format(new Date(startDate), 'MMMM d, yyyy')} - ${format(new Date(endDate), 'MMMM d, yyyy')}`, { align: 'center' });
       
-      // Get dates for the week
-      const dates = [];
-      let currentDate = new Date(startDate);
-      while (currentDate <= new Date(endDate)) {
-        dates.push(new Date(currentDate));
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-
+      // Add some space after header
+      doc.moveDown(2);
+  
+      // Table settings
+      const pageWidth = doc.page.width - 60;
+      const startX = 30;
+      let startY = doc.y;
+      
+      // Dynamic layout calculations
+      const nameColWidth = 100;
+      const dateColWidth = (pageWidth - nameColWidth) / dates.length;
+      const rowHeight = 40;
+      
       // Draw table header
-      doc.font('Helvetica-Bold');
       // Name column
-      doc.rect(startX, startY, colWidth, rowHeight)
-         .fillAndStroke('#f3f4f6', '#000'); // bg-gray-100
-      doc.fillColor('#000')
-         .text('NAMA', startX + 5, startY + 10, { width: colWidth - 10 });
-
+      doc.rect(startX, startY, nameColWidth, rowHeight)
+        .fillAndStroke(colors.headerBg, colors.border);
+      doc.fillColor(colors.headerText)
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .text('THERAPIST', startX + 5, startY + 15, { width: nameColWidth - 10 });
+  
       // Date columns
       dates.forEach((date, i) => {
-        const x = startX + colWidth * (i + 1);
-        doc.rect(x, startY, colWidth, rowHeight)
-           .fillAndStroke('#f3f4f6', '#000');
-        doc.fillColor('#000')
-           .text(format(date, 'EEE, MMM d'), x + 5, startY + 5, { 
-             width: colWidth - 10,
-             align: 'center'
-           });
-        doc.fontSize(8)
-           .text(
-             [0, 6].includes(date.getDay()) ? 'Weekend' : 'Weekday',
-             x + 5,
-             startY + 18,
-             { width: colWidth - 10, align: 'center' }
-           );
+        const x = startX + nameColWidth + (dateColWidth * i);
+        
+        // Cell background
+        doc.rect(x, startY, dateColWidth, rowHeight)
+          .fillAndStroke(colors.headerBg, colors.border);
+        
+        // Day name
+        doc.fillColor(colors.headerText)
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .text(format(date, 'EEE, MMM d'), x + 5, startY + 10, { width: dateColWidth - 10, align: 'center' });
+        
+        // Weekday/weekend
+        doc.fillColor(colors.headerText)
+          .font('Helvetica')
+          .fontSize(8)
+          .text([0, 6].includes(date.getDay()) ? 'Weekend' : 'Weekday', x + 5, startY + 24, { width: dateColWidth - 10, align: 'center' });
       });
-
+      
+      // Move to next row
+      startY += rowHeight;
+  
       // Draw table rows
-      doc.fontSize(10).font('Helvetica');
-      therapists.forEach((therapist, rowIndex) => {
-        const y = startY + rowHeight * (rowIndex + 1);
+      uniqueTherapists.forEach((therapist, rowIndex) => {
+        // Check if we need a new page
+        if (startY + rowHeight > doc.page.height - 50) {
+          doc.addPage();
+          startY = 50; // Reset Y position on new page
+          
+          // Redraw header on new page
+          doc.fontSize(14)
+            .font('Helvetica-Bold')
+            .text(`SCHEDULE - ${branchCode} (continued)`, { align: 'center' });
+          doc.moveDown();
+          
+          // Redraw column headers
+          const headerY = doc.y;
+          
+          // Name column
+          doc.rect(startX, headerY, nameColWidth, rowHeight)
+            .fillAndStroke(colors.headerBg, colors.border);
+          doc.fillColor(colors.headerText)
+            .font('Helvetica-Bold')
+            .fontSize(10)
+            .text('THERAPIST', startX + 5, headerY + 15, { width: nameColWidth - 10 });
+          
+          // Date columns
+          dates.forEach((date, i) => {
+            const x = startX + nameColWidth + (dateColWidth * i);
+            
+            doc.rect(x, headerY, dateColWidth, rowHeight)
+              .fillAndStroke(colors.headerBg, colors.border);
+            
+            doc.fillColor(colors.headerText)
+              .font('Helvetica-Bold')
+              .fontSize(10)
+              .text(format(date, 'EEE, MMM d'), x + 5, headerY + 10, { width: dateColWidth - 10, align: 'center' });
+            
+            doc.fillColor(colors.headerText)
+              .font('Helvetica')
+              .fontSize(8)
+              .text([0, 6].includes(date.getDay()) ? 'Weekend' : 'Weekday', x + 5, headerY + 24, { width: dateColWidth - 10, align: 'center' });
+          });
+          
+          startY = headerY + rowHeight;
+        }
         
         // Draw name cell
-        doc.rect(startX, y, colWidth, rowHeight)
-           .fillAndStroke('#fef3c7', '#000'); // bg-amber-100
-        doc.fillColor('#000')
-           .text(therapist.name, startX + 5, y + 10, { 
-             width: colWidth - 10 
-           });
-
+        const isEvenRow = rowIndex % 2 === 0;
+        const rowBgColor = isEvenRow ? '#ffffff' : colors.alternateRowBg;
+        
+        doc.rect(startX, startY, nameColWidth, rowHeight)
+          .fillAndStroke(colors.nameBg, colors.border);
+        
+        doc.fillColor(colors.nameText)
+          .font('Helvetica-Bold')
+          .fontSize(9)
+          .text(therapist.name, startX + 5, startY + 15, { width: nameColWidth - 10 });
+        
         // Draw schedule cells
         dates.forEach((date, colIndex) => {
-          const x = startX + colWidth * (colIndex + 1);
+          const cellX = startX + nameColWidth + (dateColWidth * colIndex);
           const dateStr = format(date, 'yyyy-MM-dd');
+          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
           
+          // Find schedule for this therapist and date
           const schedule = schedules.find(s => 
             s.Therapist.id === therapist.id && 
             s.date === dateStr
           );
-
-          // Draw cell background
-          doc.rect(x, y, colWidth, rowHeight)
-             .fillAndStroke('#ffffff', '#000');
-
-          // If there's a schedule, draw shift code with color
-          if (schedule) {
+          
+          // Cell background
+          const cellBgColor = isWeekend ? colors.weekendBg : rowBgColor;
+          
+          doc.rect(cellX, startY, dateColWidth, rowHeight)
+            .fillAndStroke(cellBgColor, colors.border);
+          
+          // If there's a schedule, draw shift badge
+          if (schedule && schedule.shift) {
             const shift = SHIFTS[schedule.shift];
-            doc.rect(x + 5, y + 5, colWidth - 10, rowHeight - 10)
-               .fill(shift.color);
-            doc.fillColor('#000')
-               .text(schedule.shift, x + 5, y + 10, {
-                 width: colWidth - 10,
-                 align: 'center'
-               });
+            if (shift) {
+              // Draw badge
+              const badgeWidth = 30;
+              const badgeHeight = 20;
+              const badgeX = cellX + (dateColWidth / 2) - (badgeWidth / 2);
+              const badgeY = startY + (rowHeight / 2) - (badgeHeight / 2);
+              
+              // Simple rectangle instead of rounded
+              doc.rect(badgeX, badgeY, badgeWidth, badgeHeight)
+                .fillAndStroke(shift.color, colors.border);
+              
+              // Draw shift code
+              doc.fillColor('#000000')
+                .font('Helvetica-Bold')
+                .fontSize(12)
+                .text(schedule.shift, badgeX, badgeY + 4, { width: badgeWidth, align: 'center' });
+            }
           }
         });
+        
+        // Move to next row
+        startY += rowHeight;
       });
-
-      // Add legend
-      const legendY = startY + rowHeight * (therapists.length + 2);
-      doc.font('Helvetica-Bold').fontSize(12)
-         .text('Legend:', startX, legendY);
+  
+      // Add shift legend
+      doc.moveDown(2);
+      doc.font('Helvetica-Bold')
+        .fontSize(12)
+        .fillColor('#000000')
+        .text('Shift Legend:', startX);
       
-      doc.font('Helvetica').fontSize(10);
+      doc.moveDown();
+      
+      // Draw legend items
+      const legendX = startX;
+      let legendY = doc.y;
+      const legendItemWidth = 150;
+      const legendItemHeight = 25;
+      
       Object.entries(SHIFTS).forEach(([code, shift], index) => {
-        const y = legendY + 20 + (index * 20);
+        // Create rows of 3 items each
+        const col = index % 3;
+        const row = Math.floor(index / 3);
+        
+        const x = legendX + (col * legendItemWidth);
+        const y = legendY + (row * legendItemHeight);
         
         // Draw color box
-        doc.rect(startX, y, 15, 15)
-           .fill(shift.color);
+        doc.rect(x, y, 20, 20)
+          .fill(shift.color);
         
-        // Draw text
-        doc.fillColor('#000')
-           .text(`${code}: ${shift.label} (${shift.time})`, 
-                 startX + 25, y + 3);
+        // Draw description
+        doc.fillColor('#000000')
+          .font('Helvetica')
+          .fontSize(10)
+          .text(`${code}: ${shift.label} (${shift.time})`, x + 25, y + 5);
       });
-
-      // Add footer with timestamp
-      const bottomY = doc.page.height - 50;
+  
+      // Add footer
+      const footerY = doc.page.height - 40;
       doc.fontSize(8)
-         .text(
-           `Generated on: ${format(new Date(), 'MMM d, yyyy HH:mm')}`,
-           startX,
-           bottomY,
-           { align: 'left' }
-         );
-
-      // Finalize the PDF
+        .fillColor(colors.footerText)
+        .text(`Generated on: ${format(new Date(), 'MMM d, yyyy HH:mm')}`, startX, footerY);
+  
+      // Finalize PDF
       doc.end();
-
+  
     } catch (error) {
       console.error('PDF Export error:', error);
       res.status(500).json({ 
