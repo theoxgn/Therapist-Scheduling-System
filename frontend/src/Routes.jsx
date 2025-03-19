@@ -10,6 +10,7 @@ import Settings from './pages/Settings';
 import ShiftSettings from './pages/ShiftSettings'; // Add this import
 import PrivateRoute from './components/PrivateRoute';
 import NavigationBar from './components/NavigationBar';
+import AddBranch from './pages/AddBranch'
 
 const AppRoutes = () => {
   return (
@@ -58,6 +59,12 @@ const AppRoutes = () => {
           <Route path="/settings" element={
             <PrivateRoute>
               <Settings />
+            </PrivateRoute>
+          } />
+
+          <Route path="/branches/new" element={
+            <PrivateRoute>
+              <AddBranch />
             </PrivateRoute>
           } />
 

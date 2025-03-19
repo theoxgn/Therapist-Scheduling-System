@@ -7,5 +7,6 @@ router.post('/', validateBranch, branchController.create);
 router.get('/', branchController.getAll);
 router.get('/:branchCode', branchController.getOne);
 router.put('/:branchCode', validateBranch, branchController.update);
+router.delete('/:branchCode', branchController.delete);
 
 module.exports = router;

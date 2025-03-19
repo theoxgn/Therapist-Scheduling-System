@@ -38,7 +38,21 @@ const branchController = {
     } catch (error) {
       res.status(400).json({ message: error.message });
     }
-  }
+  },
+  
+  async delete(req, res) {
+    try {
+      const branchCode = req.params.branchCode
+      const branch = await Branch.destroy({
+        where: {
+          branchCode: branchCode
+        }
+      });
+      res.status(201).json(branch);
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  },
 };
 
 module.exports = branchController;
