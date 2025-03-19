@@ -421,7 +421,7 @@ const ScheduleManagement = () => {
     });
     
     setValidationErrors(errors);
-  }, [getDates, shiftSettings, therapists]);
+  }, [getDates, shiftSettings, therapists, schedules]);
 
   // Calculate slot occupancy 
   const calculateSlotOccupancy = useCallback(() => {
@@ -531,7 +531,7 @@ const ScheduleManagement = () => {
 
 
   // Optimistic update function to update schedules locally without refetching
-  const updateScheduleLocally = (therapistId, dateStr, shift) => {
+  const updateScheduleLocally = useCallback((therapistId, dateStr, shift) => {
     setSchedules(prevSchedules => {
       // Check if the schedule exists
       const existingScheduleIndex = prevSchedules.findIndex(s => 
@@ -563,7 +563,7 @@ const ScheduleManagement = () => {
       calculateSlotOccupancy();
       validateSchedules();
     }, 0);
-  };
+  }, [branchCode, calculateSlotOccupancy, validateSchedules]);
 
   const handleClearDay = async () => {
     if (!window.confirm('Are you sure you want to clear all schedules for this day?')) {
