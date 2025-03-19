@@ -44,7 +44,7 @@ function TherapistCard({ therapist, onUpdate, onDelete }) {
               <span className={`px-2 py-0.5 rounded-full ${getGenderColor(therapist.gender)}`}>
                 {therapist.gender === 'male' ? 'Male' : 'Female'}
               </span>
-              <span className={`px-2 py-0.5 rounded-full ${
+              <span className={`px-1.5 py-0.5 rounded-full ${
                 therapist.isActive 
                   ? 'bg-green-100 text-green-700' 
                   : 'bg-gray-100 text-gray-700'
@@ -55,35 +55,35 @@ function TherapistCard({ therapist, onUpdate, onDelete }) {
           </div>
         </div>
         <div className="flex items-center">
-          <span className="text-sm text-gray-500 mr-2">{therapist.branchCode}</span>
+          <span className="text-xs text-gray-500">{therapist.branchCode}</span>
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="p-4 grid grid-cols-2 gap-2">
+      <div className="p-2 grid grid-cols-2 gap-2">
         <button
           onClick={toggleStatus}
           disabled={isLoading}
-          className={`flex items-center justify-center gap-1 py-2 rounded-lg transition-colors ${
+          className={`flex items-center justify-center gap-1 py-1 px-2 text-xs rounded-md transition-colors ${
             therapist.isActive 
               ? 'bg-red-100 text-red-700 hover:bg-red-200' 
               : 'bg-green-100 text-green-700 hover:bg-green-200'
           }`}
         >
           {isLoading ? (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current"></div>
           ) : (
             <>
-              <Shield size={16} />
+              <Shield size={14} />
               <span>{therapist.isActive ? 'Deactivate' : 'Activate'}</span>
             </>
           )}
         </button>
         <button
           onClick={() => onDelete(therapist.id)}
-          className="flex items-center justify-center gap-1 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+          className="flex items-center justify-center gap-1 py-1 px-2 text-xs bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
         >
-          <Trash2 size={16} />
+          <Trash2 size={14} />
           <span>Delete</span>
         </button>
       </div>
