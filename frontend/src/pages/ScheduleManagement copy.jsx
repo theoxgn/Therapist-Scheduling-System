@@ -1,16 +1,9 @@
-// File: src/pages/ScheduleManagement.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Settings } from 'lucide-react';
+import { Calendar, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
-import ScheduleHeader from '../components/schedule/ScheduleHeader';
-import ScheduleTable from '../components/schedule/ScheduleTable';
-import ShiftLegend from '../components/schedule/ShiftLegend';
-import QuickActions from '../components/schedule/QuickActions';
-import SuccessMessage from '../components/common/SuccessMessage';
 
-// Define shifts data to be used throughout the component
 const SHIFTS = {
   '1': { 
     code: '1',
@@ -42,8 +35,156 @@ const SHIFTS = {
   }
 };
 
+const ShiftBadge = ({ code, onClick, className = '' }) => {
+  const shift = SHIFTS[code];
+  if (!shift) return null;
+  
+  return (
+    <span 
+      onClick={onClick}
+      className={`
+        ${shift.color} ${shift.textColor}
+        px-3 py-1.5 rounded-md font-bold text-center
+        cursor-pointer select-none min-w-[40px] min-h-[30px]
+        flex items-center justify-center
+        ${className}
+      `}
+    >
+      {code}
+    </span>
+  );
+};
+
+const ShiftLegend = () => (
+  <div className="flex flex-wrap gap-4 text-sm mb-6">
+    {Object.entries(SHIFTS).map(([code, shift]) => (
+      <div key={code} className="flex items-center gap-2 bg-white px-3 py-2 rounded shadow-sm">
+        <div className={`w-8 h-8 flex items-center justify-center rounded-md font-bold ${
+          code === '1' ? 'bg-blue-100 text-blue-600' :
+          code === '2' ? 'bg-purple-100 text-purple-600' :
+          code === 'M' ? 'bg-green-100 text-green-600' :
+          'bg-yellow-100 text-yellow-600'
+        }`}>
+          {code}
+        </div>
+        <span className="text-gray-600">{shift.time}</span>
+      </div>
+    ))}
+  </div>
+);
+
+const QuickActions = ({ onClearDay, onClearAllSchedules, onCopyPrevious, onExportPDF, onOpenSettings }) => (
+  <div className="grid grid-cols-5 gap-4 mb-6">
+    <button
+      onClick={onClearDay}
+      className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
+    >
+      <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      </svg>
+      <span className="text-sm font-medium">Clear Day</span>
+    </button>
+    <button
+      onClick={onClearAllSchedules}
+      className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
+    >
+      <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      </svg>
+      <span className="text-sm font-medium text-red-500">Clear All</span>
+    </button>
+    <button
+      onClick={onCopyPrevious}
+      className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
+    >
+      <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+      </svg>
+      <span className="text-sm font-medium">Copy Previous Week</span>
+    </button>
+    <button
+      onClick={onExportPDF}
+      className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
+    >
+      <svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      <span className="text-sm font-medium text-blue-500">Export PDF</span>
+    </button>
+    <button
+      onClick={onOpenSettings}
+      className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
+    >
+      <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+      <span className="text-sm font-medium">Settings</span>
+    </button>
+  </div>
+);
+
+// Success message component
+const SuccessMessage = () => (
+  <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-slide-up">
+    <svg 
+      className="w-5 h-5" 
+      fill="none" 
+      stroke="currentColor" 
+      viewBox="0 0 24 24"
+    >
+      <path 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+        strokeWidth={2} 
+        d="M5 13l4 4L19 7" 
+      />
+    </svg>
+    <span>Operation completed successfully</span>
+  </div>
+);
+
+
+const ValidationTooltip = ({ errors, children }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  
+  if (!errors || errors.length === 0) {
+    return children;
+  }
+  
+  return (
+    <div 
+      className="relative"
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      {children}
+      {isVisible && (
+        <div className="absolute z-50 bg-white border border-yellow-300 shadow-lg rounded-md p-3 min-w-[250px] max-w-xs left-1/2 transform -translate-x-1/2 top-full mt-1">
+          <h4 className="font-medium text-yellow-800 mb-1 flex items-center gap-1 text-sm">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+              />
+            </svg>
+            <span>Validation Issues</span>
+          </h4>
+          <ul className="text-xs text-yellow-700 list-disc pl-4 max-h-40 overflow-y-auto">
+            {errors.map((error, index) => (
+              <li key={index} className="mb-1">{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 const ScheduleManagement = () => {
-  // State management
   const [currentDate, setCurrentDate] = useState(new Date());
   const [schedules, setSchedules] = useState([]);
   const [therapists, setTherapists] = useState([]);
@@ -388,6 +529,7 @@ const ScheduleManagement = () => {
     fetchData();
   }, [fetchBranch, fetchShiftSettings, fetchData]);
 
+
   // Optimistic update function to update schedules locally without refetching
   const updateScheduleLocally = useCallback((therapistId, dateStr, shift) => {
     setSchedules(prevSchedules => {
@@ -457,6 +599,7 @@ const ScheduleManagement = () => {
         setTimeout(() => calculateSlotOccupancy(), 0);
         
         setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
       } else {
         setError(result.error || 'Failed to clear schedules');
         // Fall back to refetching data if the optimistic update might be incorrect
@@ -499,6 +642,7 @@ const ScheduleManagement = () => {
         setTimeout(() => calculateSlotOccupancy(), 0);
         
         setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
       } else {
         setError(result.error || 'Failed to clear schedules for this week');
         await fetchData();
@@ -589,6 +733,7 @@ const ScheduleManagement = () => {
       // Show success message
       console.log(`Copied ${successCount} of ${totalSchedules} schedules from previous week`);
       setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
       
       // Refresh the data to show the new schedules
       await fetchData();
@@ -634,6 +779,7 @@ const ScheduleManagement = () => {
       window.URL.revokeObjectURL(url);
       
       setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
       console.error('Export PDF error:', err);
       setError('Failed to export schedule to PDF');
@@ -897,7 +1043,7 @@ const ScheduleManagement = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [handleKeyDown]);
+  }, [handleKeyDown]); // Include all dependencies
 
   const handleCellClick = (therapistId, date) => {
     // Toggle selection if clicking the same cell, otherwise select the new cell
@@ -953,51 +1099,87 @@ const ScheduleManagement = () => {
     };
   };
 
+  if (isLoading && !isBulkOperation) {
+    return (
+      <div className="flex justify-center items-center min-h-[200px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4">
       <div className="bg-white rounded-lg shadow-md">
-        <ScheduleHeader 
-          branchName={branch?.name}
-          branchCode={branchCode}
-          currentDate={currentDate}
-          onDateChange={(newDate) => {
-            saveScrollPosition();
-            setCurrentDate(newDate);
-          }}
-        />
-
-        <QuickActions 
-          onClearDay={handleClearDay}
-          onClearAllSchedules={handleClearAllSchedules}
-          onCopyPrevious={handleCopyPrevious}
-          onExportPDF={handleExportPDF}
-          onOpenSettings={handleOpenSettings}
-        />
-
-        <ShiftLegend shifts={SHIFTS} />
-        
-        {/* Settings status panel */}
-        {shiftSettings && (
-          <div className="mb-4 p-3 bg-gray-100 rounded-lg flex justify-between items-center mx-4">
-            <div>
-              <p className="text-sm font-medium text-gray-700">
-                Shift Settings: {shiftSettings.settings?.type === 'default' ? 'Default' : 'Custom'}
-              </p>
-              <p className="text-xs text-gray-500">
-                Weekday: {shiftSettings.weekday.shift1.min}-{shiftSettings.weekday.shift1.max} therapists per shift | 
-                Weekend: {shiftSettings.weekend.shift1.min}-{shiftSettings.weekend.shift1.max} therapists per shift | 
-                Max leave: {shiftSettings.off.maxPerDay} per day
-              </p>
+        <div className="p-4">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">Schedule Management</h1>
+            <div className="text-sm text-gray-600">
+              {branch?.name} ({branchCode})
             </div>
+          </div>
+
+          <div className="flex items-center justify-between mb-6">
             <button
-              onClick={handleOpenSettings}
-              className="px-3 py-1 bg-blue-100 text-blue-600 rounded-md text-sm hover:bg-blue-200 transition-colors flex items-center gap-1"
+              onClick={() => {
+                saveScrollPosition();
+                setCurrentDate(prev => addDays(prev, -7));
+              }}
+              className="p-2 hover:bg-gray-100 rounded-full w-10 h-10 flex items-center justify-center"
             >
-              <Settings className="w-4 h-4" />
-              <span>Configure</span>
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 bg-white py-2 px-4 shadow-sm rounded-md">
+              <Calendar className="w-5 h-5 text-gray-600" />
+              <span className="font-medium text-lg">
+                {format(currentDate, 'MMMM d, yyyy')}
+              </span>
+            </div>
+
+            <button
+              onClick={() => {
+                saveScrollPosition();
+                setCurrentDate(prev => addDays(prev, 7));
+              }}
+              className="p-2 hover:bg-gray-100 rounded-full w-10 h-10 flex items-center justify-center"
+            >
+              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
-        )}
+
+          <QuickActions 
+            onClearDay={handleClearDay}
+            onClearAllSchedules={handleClearAllSchedules}
+            onCopyPrevious={handleCopyPrevious}
+            onExportPDF={handleExportPDF}
+            onOpenSettings={handleOpenSettings}
+          />
+
+          <ShiftLegend />
+          
+          {/* Display shift settings status */}
+          {shiftSettings && (
+            <div className="mb-4 p-3 bg-gray-100 rounded-lg flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-gray-700">
+                  Shift Settings: {shiftSettings.settings?.type === 'default' ? 'Default' : 'Custom'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Weekday: {shiftSettings.weekday.shift1.min}-{shiftSettings.weekday.shift1.max} therapists per shift | 
+                  Weekend: {shiftSettings.weekend.shift1.min}-{shiftSettings.weekend.shift1.max} therapists per shift | 
+                  Max leave: {shiftSettings.off.maxPerDay} per day
+                </p>
+              </div>
+              <button
+                onClick={handleOpenSettings}
+                className="px-3 py-1 bg-blue-100 text-blue-600 rounded-md text-sm hover:bg-blue-200 transition-colors flex items-center gap-1"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Configure</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="mb-4 p-3 bg-gray-50 rounded mx-4">
           <p className="text-sm text-gray-600">
@@ -1007,13 +1189,14 @@ const ScheduleManagement = () => {
         </div>
 
         <div className="mx-4">
+          {/* Success Message */}
           {showSuccess && <SuccessMessage />}
 
           {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
               <button 
-                className="absolute top-2 right-2 text-red-700"
+                className="float-right text-red-700"
                 onClick={() => setError(null)}
               >
                 &times;
@@ -1029,25 +1212,179 @@ const ScheduleManagement = () => {
           </div>
         )}
 
-        {isLoading && !isBulkOperation ? (
-          <div className="flex justify-center items-center min-h-[200px]">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+        {/* Condensed validation issues summary */}
+        {/* {Object.keys(validationErrors).length > 0 && (
+          <div className="p-3 mb-2 bg-yellow-50 border border-yellow-200 rounded-lg mx-4">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                />
+              </svg>
+              <span className="text-sm text-yellow-700">
+                Found {Object.keys(validationErrors).length} validation issues. Hover over dates or cells with warning indicators to see details.
+              </span>
+            </div>
           </div>
-        ) : (
-          <ScheduleTable
-            therapists={therapists}
-            dates={getDates()}
-            getTherapistShift={getTherapistShift}
-            selectedCell={selectedCell}
-            onCellClick={handleCellClick}
-            validationErrors={validationErrors}
-            getDateValidationErrors={getDateValidationErrors}
-            getTherapistValidationErrors={getTherapistValidationErrors}
-            getRemainingSlots={getRemainingSlots}
-            shifts={SHIFTS}
-            tableContainerRef={tableContainerRef}
-          />
-        )}
+        )} */}
+
+        <div 
+          className="overflow-x-auto max-h-[600px] overflow-y-auto" 
+          ref={tableContainerRef}
+        >
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                <th className="p-3 border-b bg-gray-50 text-left w-48">
+                  NAMA
+                </th>
+                {getDates().map(date => {
+                  const dateErrors = getDateValidationErrors(date);
+                  const hasErrors = dateErrors.length > 0;
+                  const remainingSlots = getRemainingSlots(date);
+                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                  
+                  return (
+                    <th 
+                      key={date.toISOString()} 
+                      className={`p-3 border-b text-center min-w-[120px] ${
+                        isWeekend ? 'bg-blue-50' : 'bg-gray-50'
+                      } ${hasErrors ? 'border-yellow-300' : ''}`}
+                    >
+                      <ValidationTooltip errors={dateErrors}>
+                        <div className="font-medium">
+                          {format(date, 'EEE, MMM d')}
+                        </div>
+                        <div className="text-xs text-gray-500 mb-1">
+                          {isWeekend ? 'Weekend' : 'Weekday'}
+                        </div>
+                        
+                        {/* Slot availability indicators */}
+                        {remainingSlots && (
+                          <div className="space-y-1 mt-2 border-t pt-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="font-medium text-blue-600">Shift 1:</span>
+                              <span className={remainingSlots.shift1.current < remainingSlots.shift1.min ? 'text-red-600 font-bold' : ''}>
+                                {remainingSlots.shift1.current}/{remainingSlots.shift1.max}
+                                {/* {remainingSlots.shift1.current < remainingSlots.shift1.min && 
+                                  ` (Need ${remainingSlots.shift1.min - remainingSlots.shift1.current})`} */}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between text-xs">
+                              <span className="font-medium text-green-600">Middle:</span>
+                              <span className={remainingSlots.shiftM.current < remainingSlots.shiftM.min ? 'text-red-600 font-bold' : ''}>
+                                {remainingSlots.shiftM.current}/{remainingSlots.shiftM.max}
+                                {/* {remainingSlots.shiftM.current < remainingSlots.shiftM.min && 
+                                  ` (Need ${remainingSlots.shiftM.min - remainingSlots.shiftM.current})`} */}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between text-xs">
+                              <span className="font-medium text-purple-600">Shift 2:</span>
+                              <span className={remainingSlots.shift2.current < remainingSlots.shift2.min ? 'text-red-600 font-bold' : ''}>
+                                {remainingSlots.shift2.current}/{remainingSlots.shift2.max}
+                                {/* {remainingSlots.shift2.current < remainingSlots.shift2.min && 
+                                  ` (Need ${remainingSlots.shift2.min - remainingSlots.shift2.current})`} */}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between text-xs">
+                              <span className="font-medium text-yellow-600">Leave:</span>
+                              <span className={remainingSlots.leave.current >= remainingSlots.leave.max ? 'text-red-600 font-bold' : ''}>
+                                {remainingSlots.leave.current}/{remainingSlots.leave.max}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {hasErrors && !remainingSlots && (
+                          <div className="text-xs text-yellow-600 mt-1 flex items-center justify-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={2} 
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                              />
+                            </svg>
+                            <span>{dateErrors.length} issues</span>
+                          </div>
+                        )}
+                      </ValidationTooltip>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {therapists.map(therapist => {
+                const therapistErrors = getTherapistValidationErrors(therapist.id);
+                const hasTherapistErrors = therapistErrors.length > 0;
+                
+                return (
+                  <tr key={therapist.id} className="group">
+                    <td className={`p-3 border-b font-medium sticky left-0 ${
+                      hasTherapistErrors ? 'bg-amber-200' : 'bg-amber-100'
+                    }`}>
+                      <ValidationTooltip errors={therapistErrors}>
+                        <div className="flex items-center justify-between">
+                          <span>{therapist.name}</span>
+                          {therapist.gender === 'male' && (
+                            <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded">M</span>
+                          )}
+                        </div>
+                        {hasTherapistErrors && (
+                          <div className="text-xs text-amber-800 mt-1">
+                            {therapistErrors[0]}
+                            {therapistErrors.length > 1 && ` (+${therapistErrors.length - 1} more)`}
+                          </div>
+                        )}
+                      </ValidationTooltip>
+                    </td>
+                    {getDates().map(date => {
+                      const shift = getTherapistShift(therapist.id, date);
+                      const isSelected = 
+                        selectedCell && 
+                        selectedCell.therapistId === therapist.id && 
+                        format(selectedCell.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
+                      
+                      // Get validation errors specific to this cell
+                      const dateStr = format(date, 'yyyy-MM-dd');
+                      const cellErrorKeys = Object.keys(validationErrors).filter(key => 
+                        key.includes(dateStr) && key.includes(shift) && !key.includes('min') && !key.includes('max')
+                      );
+                      const cellErrors = cellErrorKeys.map(key => validationErrors[key]);
+                      const hasCellError = cellErrors.length > 0;
+                      
+                      return (
+                        <td 
+                          key={date.toISOString()}
+                          className={`p-3 border-b border-r text-center ${
+                            isSelected ? 'bg-blue-100' : hasCellError ? 'bg-red-50' : ''
+                          }`}
+                          onClick={() => handleCellClick(therapist.id, date)}
+                        >
+                          {shift && (
+                            <div className="relative">
+                              <ShiftBadge code={shift} className="w-full" />
+                              {hasCellError && (
+                                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500"></div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
