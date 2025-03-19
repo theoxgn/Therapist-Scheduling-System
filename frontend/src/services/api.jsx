@@ -510,7 +510,7 @@ const endpoints = {
   shiftSettings: {
     get: async (branchCode) => {
       try {
-        const response = await axios.get(`/api/branches/${branchCode}/shift-settings`);
+        const response = await api.get(`/branches/${branchCode}/shift-settings`);
         return { success: true, data: response.data };
       } catch (error) {
         return {
@@ -520,9 +520,21 @@ const endpoints = {
       }
     },
 
+    create: async (branchCode, settings) => {
+      try {
+        const response = await api.post(`/branches/${branchCode}/shift-settings`, settings);
+        return { success: true, data: response.data };
+      } catch (error) {
+        return {
+          success: false,
+          error: error.response?.data?.message || 'Failed to create shift settings'
+        };
+      }
+    },
+
     update: async (branchCode, settings) => {
       try {
-        const response = await axios.put(`/api/branches/${branchCode}/shift-settings`, settings);
+        const response = await api.put(`/branches/${branchCode}/shift-settings`, settings);
         return { success: true, data: response.data };
       } catch (error) {
         return {
@@ -530,8 +542,7 @@ const endpoints = {
           error: error.response?.data?.message || 'Failed to update shift settings'
         };
       }
-    },
-    
+    }
   },
 };
 

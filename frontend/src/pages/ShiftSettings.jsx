@@ -46,6 +46,7 @@ const ShiftSettings = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [branch, setBranch] = useState(null);
+  const [settingsExist, setSettingsExist] = useState(false);
   const [settings, setSettings] = useState({
     weekday: {
       shift1: { min: 2, max: 3 },
@@ -79,8 +80,15 @@ const ShiftSettings = () => {
 
       // Fetch shift settings
       const settingsResult = await api.shiftSettings.get(branchCode);
+      console.log(settingsResult.data.settings.type)
       if (settingsResult.success) {
-        setSettings(settingsResult.data);
+        if (settingsResult.data.settings.type == 'default') {
+          setSettings(settingsResult.data);
+          setSettingsExist(false);
+        } else {
+          // Settings don't exist yet, but we'll use the default values already set
+          setSettingsExist(true);
+        }
       }
 
     } catch (err) {
@@ -176,8 +184,19 @@ const ShiftSettings = () => {
       // Validate settings
       validateSettings();
 
-      // Save settings
-      const result = await api.shiftSettings.update(branchCode, settings);
+      let result;
+      
+      // Use POST to create new settings or PUT to update existing ones
+      if (!settingsExist) {
+        // Create new settings
+        result = await api.shiftSettings.create(branchCode, settings);
+        if (result.success) {
+          setSettingsExist(true);
+        }
+      } else {
+        // Update existing settings
+        result = await api.shiftSettings.update(branchCode, settings);
+      }
       
       if (result.success) {
         setSuccess(true);
@@ -221,6 +240,17 @@ const ShiftSettings = () => {
             </svg>
           </button>
         </div>
+
+        {!settingsExist && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>No shift settings exist for this branch yet. The form is pre-filled with default values. Click Save to create settings.</span>
+            </div>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (
@@ -331,7 +361,7 @@ const ShiftSettings = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
             </svg>
-            Save Settings
+            {settingsExist ? 'Update Settings' : 'Create Settings'}
           </button>
         </div>
 
@@ -341,7 +371,7 @@ const ShiftSettings = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            <span>Settings saved successfully</span>
+            <span>Settings {settingsExist ? 'updated' : 'created'} successfully</span>
           </div>
         )}
       </div>

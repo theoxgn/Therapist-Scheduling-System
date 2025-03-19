@@ -1,6 +1,7 @@
 const Branch = require('./Branch');
 const Therapist = require('./Therapist');
 const Schedule = require('./Schedule');
+const ShiftSettings = require('./ShiftSettings');
 
 // Associations
 Therapist.belongsTo(Branch, { foreignKey: 'branchCode' });
@@ -12,6 +13,7 @@ Therapist.hasMany(Schedule, { foreignKey: 'therapistId' });
 module.exports = {
   Branch,
   Therapist,
-  Schedule
+  Schedule,
+  ShiftSettings
 };
 
