@@ -31,7 +31,20 @@ const therapistController = {
     } catch (error) {
       res.status(400).json({ message: error.message });
     }
-  }
+  },
+  async delete(req, res) {
+    try {
+      const therapist = req.params.id
+      const therapistData = await Therapist.destroy({
+        where: {
+          id: therapist
+        }
+      });
+      res.status(201).json(therapistData);
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  },
 };
 
 module.exports = therapistController;

@@ -6,5 +6,6 @@ const { validateTherapist } = require('../middlewares/validation');
 router.post('/', validateTherapist, therapistController.create);
 router.get('/', therapistController.getAll);
 router.put('/:id', validateTherapist, therapistController.update);
+router.delete('/:id', therapistController.delete);
 
 module.exports = router;
