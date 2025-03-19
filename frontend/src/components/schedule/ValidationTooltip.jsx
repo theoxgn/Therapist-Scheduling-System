@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 
-const ValidationTooltip = ({ errors, children }) => {
+const ValidationTooltip = ({ errors, children, showValidationOnHover = true }) => {
   const [isVisible, setIsVisible] = useState(false);
   
   if (!errors || errors.length === 0) {
     return children;
+  }
+  
+  // If validation should not be shown on hover, just render the children
+  if (!showValidationOnHover) {
+    return (
+      <div className="relative">
+        {children}
+      </div>
+    );
   }
   
   return (
@@ -12,26 +22,31 @@ const ValidationTooltip = ({ errors, children }) => {
       className="relative"
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
+      onFocus={() => setIsVisible(true)}
+      onBlur={() => setIsVisible(false)}
     >
       {children}
       {isVisible && (
-        <div className="absolute z-50 bg-white border border-yellow-300 shadow-lg rounded-md p-3 min-w-[250px] max-w-xs left-1/2 transform -translate-x-1/2 top-full mt-1">
-          <h4 className="font-medium text-yellow-800 mb-1 flex items-center gap-1 text-sm">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
-              />
-            </svg>
-            <span>Validation Issues</span>
-          </h4>
-          <ul className="text-xs text-yellow-700 list-disc pl-4 max-h-40 overflow-y-auto">
-            {errors.map((error, index) => (
-              <li key={index} className="mb-1">{error}</li>
-            ))}
-          </ul>
+        <div className="absolute z-50 bg-white border border-yellow-300 shadow-lg rounded-lg p-3 min-w-[250px] max-w-xs left-0 top-full mt-1">
+          {/* Tooltip arrow - positioned at the top left */}
+          <div className="absolute -top-2 left-4 transform w-4 h-4 rotate-45 bg-white border-t border-l border-yellow-300"></div>
+          
+          <div className="flex items-start">
+            <AlertTriangle className="w-5 h-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-medium text-yellow-800 mb-2 text-sm">
+                Validation Issues
+              </h4>
+              <ul className="text-xs text-yellow-700 space-y-1.5 max-h-40 overflow-y-auto">
+                {errors.map((error, index) => (
+                  <li key={index} className="flex items-start">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 mr-1.5 flex-shrink-0"></span>
+                    <span>{error}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
       )}
     </div>

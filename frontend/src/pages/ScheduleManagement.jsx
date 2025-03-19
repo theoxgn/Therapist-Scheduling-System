@@ -954,100 +954,137 @@ const ScheduleManagement = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="bg-white rounded-lg shadow-md">
-        <ScheduleHeader 
-          branchName={branch?.name}
-          branchCode={branchCode}
-          currentDate={currentDate}
-          onDateChange={(newDate) => {
-            saveScrollPosition();
-            setCurrentDate(newDate);
-          }}
-        />
-
-        <QuickActions 
-          onClearDay={handleClearDay}
-          onClearAllSchedules={handleClearAllSchedules}
-          onCopyPrevious={handleCopyPrevious}
-          onExportPDF={handleExportPDF}
-          onOpenSettings={handleOpenSettings}
-        />
-
-        <ShiftLegend shifts={SHIFTS} />
-        
-        {/* Settings status panel */}
-        {shiftSettings && (
-          <div className="mb-4 p-3 bg-gray-100 rounded-lg flex justify-between items-center mx-4">
-            <div>
-              <p className="text-sm font-medium text-gray-700">
-                Shift Settings: {shiftSettings.settings?.type === 'default' ? 'Default' : 'Custom'}
-              </p>
-              <p className="text-xs text-gray-500">
-                Weekday: {shiftSettings.weekday.shift1.min}-{shiftSettings.weekday.shift1.max} therapists per shift | 
-                Weekend: {shiftSettings.weekend.shift1.min}-{shiftSettings.weekend.shift1.max} therapists per shift | 
-                Max leave: {shiftSettings.off.maxPerDay} per day
-              </p>
-            </div>
-            <button
-              onClick={handleOpenSettings}
-              className="px-3 py-1 bg-blue-100 text-blue-600 rounded-md text-sm hover:bg-blue-200 transition-colors flex items-center gap-1"
-            >
-              <Settings className="w-4 h-4" />
-              <span>Configure</span>
-            </button>
+    <div className="bg-gray-50 min-h-screen">
+      <div className="container mx-auto py-6 px-4">
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          {/* Enhanced header with gradient background */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-800">
+            <ScheduleHeader 
+              branchName={branch?.name}
+              branchCode={branchCode}
+              currentDate={currentDate}
+              onDateChange={(newDate) => {
+                saveScrollPosition();
+                setCurrentDate(newDate);
+              }}
+            />
           </div>
-        )}
 
-        <div className="mb-4 p-3 bg-gray-50 rounded mx-4">
-          <p className="text-sm text-gray-600">
-            <strong>Keyboard Controls:</strong> Click on a cell and press 1, 2, M, or X to assign shifts. 
-            When setting X (Leave), shift 1 will be auto-assigned before and shift 2 after.
-          </p>
-        </div>
+          {/* Improved Quick Actions */}
+          <div className="pt-4 px-4">
+            <QuickActions 
+              onClearDay={handleClearDay}
+              onClearAllSchedules={handleClearAllSchedules}
+              onCopyPrevious={handleCopyPrevious}
+              onExportPDF={handleExportPDF}
+              onOpenSettings={handleOpenSettings}
+            />
+          </div>
 
-        <div className="mx-4">
-          {showSuccess && <SuccessMessage />}
-
-          {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
-              {error}
-              <button 
-                className="absolute top-2 right-2 text-red-700"
-                onClick={() => setError(null)}
+          {/* Enhanced Shift Legend */}
+          <div className="px-4 pt-2">
+            <ShiftLegend shifts={SHIFTS} />
+          </div>
+          
+          {/* Settings status panel with improved design */}
+          {shiftSettings && (
+            <div className="mx-4 mb-4 p-4 bg-blue-50 rounded-lg flex justify-between items-center border border-blue-100">
+              <div>
+                <p className="text-sm font-medium text-blue-800 flex items-center">
+                  <Settings className="w-4 h-4 mr-1" />
+                  Shift Settings: {shiftSettings.settings?.type === 'default' ? 'Default' : 'Custom'}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  Weekday: {shiftSettings.weekday.shift1.min}-{shiftSettings.weekday.shift1.max} therapists per shift | 
+                  Weekend: {shiftSettings.weekend.shift1.min}-{shiftSettings.weekend.shift1.max} therapists per shift | 
+                  Max leave: {shiftSettings.off.maxPerDay} per day
+                </p>
+              </div>
+              <button
+                onClick={handleOpenSettings}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-sm"
               >
-                &times;
+                <Settings className="w-4 h-4" />
+                <span>Configure</span>
               </button>
             </div>
           )}
+
+          {/* Improved help text box */}
+          <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200 mx-4 flex items-start">
+            {/* <Info className="w-5 h-5 text-gray-500 mr-2 flex-shrink-0 mt-0.5" /> */}
+            <p className="text-sm text-gray-600">
+              <strong>Keyboard Controls:</strong> Click on a cell and press 1, 2, M, or X to assign shifts. 
+              Press <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-xs mx-1">Backspace</kbd> to clear a shift.
+              When setting X (Leave), shift 1 will be auto-assigned before and shift 2 after.
+            </p>
+          </div>
+
+          <div className="mx-4 mb-4">
+            {showSuccess && <SuccessMessage />}
+
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg relative flex items-center">
+                <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{error}</span>
+                <button 
+                  className="absolute top-3 right-3 text-red-700 hover:bg-red-100 p-1 rounded-full"
+                  onClick={() => setError(null)}
+                  aria-label="Dismiss"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Improved loading indicators */}
+          {isBulkOperation && (
+            <div className="flex justify-center items-center p-6 bg-white/80 rounded-lg mx-4 mb-4 border">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3" />
+              <span className="text-blue-800 font-medium">Processing bulk operation...</span>
+            </div>
+          )}
+
+          {isLoading && !isBulkOperation ? (
+            <div className="flex justify-center items-center min-h-[300px]">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mr-3" />
+              <span className="text-blue-800 font-medium">Loading schedule data...</span>
+            </div>
+          ) : (
+            <div className="px-4 pb-6">
+              <div className="border rounded-lg overflow-hidden shadow-sm">
+                <ScheduleTable
+                  therapists={therapists}
+                  dates={getDates()}
+                  getTherapistShift={getTherapistShift}
+                  selectedCell={selectedCell}
+                  onCellClick={handleCellClick}
+                  validationErrors={validationErrors}
+                  getDateValidationErrors={getDateValidationErrors}
+                  getTherapistValidationErrors={getTherapistValidationErrors}
+                  getRemainingSlots={getRemainingSlots}
+                  shifts={SHIFTS}
+                  tableContainerRef={tableContainerRef}
+                />
+              </div>
+              
+              {/* Keyboard shortcut reminder */}
+              <div className="mt-4 text-sm text-gray-500 flex items-center justify-center flex-wrap gap-2">
+                <span className="bg-gray-100 rounded px-2 py-1 font-mono">1</span>
+                <span className="bg-gray-100 rounded px-2 py-1 font-mono">2</span>
+                <span className="bg-gray-100 rounded px-2 py-1 font-mono">M</span>
+                <span className="bg-gray-100 rounded px-2 py-1 font-mono">X</span>
+                <span className="mr-4">to assign shifts</span>
+                
+                <span className="bg-gray-100 rounded px-2 py-1 font-mono">⌫</span>
+                <span>to clear shifts</span>
+              </div>
+            </div>
+          )}
         </div>
-
-        {isBulkOperation && (
-          <div className="flex justify-center items-center p-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2" />
-            <span>Processing...</span>
-          </div>
-        )}
-
-        {isLoading && !isBulkOperation ? (
-          <div className="flex justify-center items-center min-h-[200px]">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
-          </div>
-        ) : (
-          <ScheduleTable
-            therapists={therapists}
-            dates={getDates()}
-            getTherapistShift={getTherapistShift}
-            selectedCell={selectedCell}
-            onCellClick={handleCellClick}
-            validationErrors={validationErrors}
-            getDateValidationErrors={getDateValidationErrors}
-            getTherapistValidationErrors={getTherapistValidationErrors}
-            getRemainingSlots={getRemainingSlots}
-            shifts={SHIFTS}
-            tableContainerRef={tableContainerRef}
-          />
-        )}
       </div>
     </div>
   );
