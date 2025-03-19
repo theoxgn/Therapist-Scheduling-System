@@ -809,6 +809,43 @@ const ScheduleManagement = () => {
     
     const keyPressed = e.key;
     
+    // Handle backspace key to delete cell value
+    if (keyPressed === 'Backspace') {
+      try {
+        saveScrollPosition();
+        
+        const existingSchedule = schedules.find(s => 
+          s.therapistId === therapistId && 
+          s.date === dateStr
+        );
+        
+        if (existingSchedule) {
+          // Delete the schedule
+          await api.schedules.delete(existingSchedule.id);
+          
+          // Update local state by removing the schedule
+          setSchedules(prevSchedules => 
+            prevSchedules.filter(s => s.id !== existingSchedule.id)
+          );
+          
+          // Update validation and slot occupancy
+          setTimeout(() => {
+            validateSchedules();
+            calculateSlotOccupancy();
+          }, 0);
+        }
+      } catch (err) {
+        console.error('Schedule deletion error:', err);
+        setError(err.message || 'Failed to delete shift');
+        
+        // If there was an error, fetch the correct data
+        await fetchData();
+      } finally {
+        setTimeout(restoreScrollPosition, 0);
+      }
+      return;
+    }
+    
     // Check if the pressed key is valid
     if (validKeys[keyPressed]) {
       const newShift = validKeys[keyPressed];
@@ -997,7 +1034,7 @@ const ScheduleManagement = () => {
       }
     }
   }, [selectedCell, schedules, branchCode, branch, therapists, shiftSettings, saveScrollPosition, restoreScrollPosition, updateScheduleLocally, fetchData, validateSchedules, calculateSlotOccupancy]);
-
+  
   // Add this useEffect to handle keyboard events
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
