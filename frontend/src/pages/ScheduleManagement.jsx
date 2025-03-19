@@ -343,9 +343,6 @@ const ScheduleManagement = () => {
       const dates = getDates();
       const currentWeekStart = format(dates[0], 'yyyy-MM-dd');
       
-      // Since api.schedules.copyPreviousWeek is not available, we need to implement 
-      // the functionality here using the available API methods
-      
       // Calculate the previous week's dates
       const prevWeekStart = new Date(dates[0]);
       prevWeekStart.setDate(prevWeekStart.getDate() - 7);
