@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, addDays } from 'date-fns';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, Trash2, Copy, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
 
 const SHIFTS = {
@@ -144,28 +144,6 @@ const SuccessMessage = () => (
   </div>
 );
 
-// Validation message component
-const ValidationMessage = ({ message, type = 'warning' }) => {
-  const bgColor = type === 'error' ? 'bg-red-50' : 'bg-yellow-50';
-  const borderColor = type === 'error' ? 'border-red-200' : 'border-yellow-200';
-  const textColor = type === 'error' ? 'text-red-700' : 'text-yellow-700';
-
-  return (
-    <div className={`mt-2 ${bgColor} border ${borderColor} ${textColor} px-4 py-2 rounded-md text-sm`}>
-      <div className="flex items-center gap-2">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth={2} 
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
-          />
-        </svg>
-        <span>{message}</span>
-      </div>
-    </div>
-  );
-};
 
 const ValidationTooltip = ({ errors, children }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -205,34 +183,6 @@ const ValidationTooltip = ({ errors, children }) => {
   );
 };
 
-// Cell tooltip for showing shift-specific validation issues
-const CellValidationTooltip = ({ errors, children }) => {
-  const [isVisible, setIsVisible] = useState(false);
-  
-  if (!errors || errors.length === 0) {
-    return children;
-  }
-  
-  return (
-    <div 
-      className="relative"
-      onMouseEnter={() => setIsVisible(true)}
-      onMouseLeave={() => setIsVisible(false)}
-    >
-      {children}
-      {isVisible && (
-        <div className="absolute z-50 bg-white border border-red-300 shadow-lg rounded-md p-2 min-w-[200px] left-1/2 transform -translate-x-1/2 top-full mt-1 text-xs">
-          <ul className="text-red-700 list-disc pl-4">
-            {errors.map((error, index) => (
-              <li key={index}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-};
-
 
 const ScheduleManagement = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -248,6 +198,7 @@ const ScheduleManagement = () => {
   const [isBulkOperation, setIsBulkOperation] = useState(false);
   const [shiftSettings, setShiftSettings] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
+  const [slotOccupancy, setSlotOccupancy] = useState({});
   
   // Refs for maintaining scroll position
   const scrollPositionRef = useRef(0);
@@ -342,54 +293,6 @@ const ScheduleManagement = () => {
     return dates;
   }, [currentDate]);
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      // Save scroll position before fetching new data
-      saveScrollPosition();
-
-      const therapistsResult = await api.therapists.getByBranch(branchCode);
-      const dates = getDates();
-      const startDate = format(dates[0], 'yyyy-MM-dd');
-      const endDate = format(dates[6], 'yyyy-MM-dd');
-
-      const schedulesResult = await api.schedules.getByDateRange(
-        branchCode,
-        startDate,
-        endDate
-      );
-
-      if (therapistsResult.success && schedulesResult.success) {
-        setTherapists(therapistsResult.data);
-        setSchedules(schedulesResult.data);
-        
-        // After loading schedules, validate against shift settings
-        validateSchedules(schedulesResult.data);
-      } else {
-        if (!therapistsResult.success) {
-          console.error('Error fetching therapists:', therapistsResult.error);
-        }
-        if (!schedulesResult.success) {
-          console.error('Error fetching schedules:', schedulesResult.error);
-        }
-        setError(schedulesResult.error || therapistsResult.error || 'Failed to load data');
-      }
-    } catch (err) {
-      console.error('Error in fetchData:', err);
-      setError('Failed to load schedule data');
-    } finally {
-      setIsLoading(false);
-      // Restore scroll position after fetch completes
-      setTimeout(restoreScrollPosition, 0);
-    }
-  }, [branchCode, getDates, saveScrollPosition, restoreScrollPosition]);
-
-  useEffect(() => {
-    fetchBranch();
-    fetchShiftSettings();
-    fetchData();
-  }, [fetchBranch, fetchShiftSettings, fetchData]);
-
   // Validate schedules against shift settings
   const validateSchedules = useCallback((schedulesData = schedules) => {
     if (!shiftSettings) return;
@@ -412,33 +315,40 @@ const ScheduleManagement = () => {
       
       // Check minimum therapists for each shift
       if (shift1Schedules.length < shiftSettings[settingsType].shift1.min) {
-        errors[`${dateStr}-shift1-min`] = `Need at least ${shiftSettings[settingsType].shift1.min} therapists for Shift 1`;
+        const remaining = shiftSettings[settingsType].shift1.min - shift1Schedules.length;
+        errors[`${dateStr}-shift1-min`] = `Need ${remaining} more therapist${remaining > 1 ? 's' : ''} for Shift 1`;
       }
       
       if (shiftMSchedules.length < shiftSettings[settingsType].shiftMiddle.min) {
-        errors[`${dateStr}-shiftM-min`] = `Need at least ${shiftSettings[settingsType].shiftMiddle.min} therapists for Middle Shift`;
+        const remaining = shiftSettings[settingsType].shiftMiddle.min - shiftMSchedules.length;
+        errors[`${dateStr}-shiftM-min`] = `Need ${remaining} more therapist${remaining > 1 ? 's' : ''} for Middle Shift`;
       }
       
       if (shift2Schedules.length < shiftSettings[settingsType].shift2.min) {
-        errors[`${dateStr}-shift2-min`] = `Need at least ${shiftSettings[settingsType].shift2.min} therapists for Shift 2`;
+        const remaining = shiftSettings[settingsType].shift2.min - shift2Schedules.length;
+        errors[`${dateStr}-shift2-min`] = `Need ${remaining} more therapist${remaining > 1 ? 's' : ''} for Shift 2`;
       }
       
       // Check maximum therapists for each shift
       if (shift1Schedules.length > shiftSettings[settingsType].shift1.max) {
-        errors[`${dateStr}-shift1-max`] = `Maximum ${shiftSettings[settingsType].shift1.max} therapists allowed for Shift 1`;
+        const excess = shift1Schedules.length - shiftSettings[settingsType].shift1.max;
+        errors[`${dateStr}-shift1-max`] = `${excess} too many therapists assigned to Shift 1`;
       }
       
       if (shiftMSchedules.length > shiftSettings[settingsType].shiftMiddle.max) {
-        errors[`${dateStr}-shiftM-max`] = `Maximum ${shiftSettings[settingsType].shiftMiddle.max} therapists allowed for Middle Shift`;
+        const excess = shiftMSchedules.length - shiftSettings[settingsType].shiftMiddle.max;
+        errors[`${dateStr}-shiftM-max`] = `${excess} too many therapists assigned to Middle Shift`;
       }
       
       if (shift2Schedules.length > shiftSettings[settingsType].shift2.max) {
-        errors[`${dateStr}-shift2-max`] = `Maximum ${shiftSettings[settingsType].shift2.max} therapists allowed for Shift 2`;
+        const excess = shift2Schedules.length - shiftSettings[settingsType].shift2.max;
+        errors[`${dateStr}-shift2-max`] = `${excess} too many therapists assigned to Shift 2`;
       }
       
       // Check maximum leave requests per day
       if (leaveSchedules.length > shiftSettings.off.maxPerDay) {
-        errors[`${dateStr}-leave-max`] = `Maximum ${shiftSettings.off.maxPerDay} therapists can be on leave per day`;
+        const excess = leaveSchedules.length - shiftSettings.off.maxPerDay;
+        errors[`${dateStr}-leave-max`] = `${excess} too many therapists on leave`;
       }
       
       // Check male therapist requirement
@@ -511,24 +421,114 @@ const ScheduleManagement = () => {
     });
     
     setValidationErrors(errors);
-  }, [getDates, shiftSettings, schedules, therapists]);
+  }, [getDates, shiftSettings, therapists]);
 
-  // Check for validation errors when schedules or settings change
+  // Calculate slot occupancy 
+  const calculateSlotOccupancy = useCallback(() => {
+    if (!shiftSettings || schedules.length === 0) return {};
+    
+    const newSlotOccupancy = {};
+    const dates = getDates();
+    
+    dates.forEach(date => {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const settingsType = isWeekend ? 'weekend' : 'weekday';
+      
+      // Get shifts for this date
+      const shiftsOnDate = schedules.filter(s => s.date === dateStr);
+      const shift1Count = shiftsOnDate.filter(s => s.shift === '1').length;
+      const shiftMCount = shiftsOnDate.filter(s => s.shift === 'M').length;
+      const shift2Count = shiftsOnDate.filter(s => s.shift === '2').length;
+      const leaveCount = shiftsOnDate.filter(s => s.shift === 'X').length;
+      
+      newSlotOccupancy[dateStr] = {
+        shift1: {
+          current: shift1Count,
+          min: shiftSettings[settingsType].shift1.min,
+          max: shiftSettings[settingsType].shift1.max,
+          remaining: shiftSettings[settingsType].shift1.max - shift1Count
+        },
+        shiftM: {
+          current: shiftMCount,
+          min: shiftSettings[settingsType].shiftMiddle.min,
+          max: shiftSettings[settingsType].shiftMiddle.max,
+          remaining: shiftSettings[settingsType].shiftMiddle.max - shiftMCount
+        },
+        shift2: {
+          current: shift2Count,
+          min: shiftSettings[settingsType].shift2.min,
+          max: shiftSettings[settingsType].shift2.max,
+          remaining: shiftSettings[settingsType].shift2.max - shift2Count
+        },
+        leave: {
+          current: leaveCount,
+          max: shiftSettings.off.maxPerDay,
+          remaining: shiftSettings.off.maxPerDay - leaveCount
+        }
+      };
+    });
+    
+    setSlotOccupancy(newSlotOccupancy);
+    return newSlotOccupancy;
+  }, [getDates, schedules, shiftSettings]);
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Save scroll position before fetching new data
+      saveScrollPosition();
+
+      const therapistsResult = await api.therapists.getByBranch(branchCode);
+      const dates = getDates();
+      const startDate = format(dates[0], 'yyyy-MM-dd');
+      const endDate = format(dates[6], 'yyyy-MM-dd');
+
+      const schedulesResult = await api.schedules.getByDateRange(
+        branchCode,
+        startDate,
+        endDate
+      );
+
+      if (therapistsResult.success && schedulesResult.success) {
+        setTherapists(therapistsResult.data);
+        setSchedules(schedulesResult.data);
+        
+        // After loading schedules, validate against shift settings
+        // We'll do this in a separate useEffect to avoid the circular dependency
+      } else {
+        if (!therapistsResult.success) {
+          console.error('Error fetching therapists:', therapistsResult.error);
+        }
+        if (!schedulesResult.success) {
+          console.error('Error fetching schedules:', schedulesResult.error);
+        }
+        setError(schedulesResult.error || therapistsResult.error || 'Failed to load data');
+      }
+    } catch (err) {
+      console.error('Error in fetchData:', err);
+      setError('Failed to load schedule data');
+    } finally {
+      setIsLoading(false);
+      // Restore scroll position after fetch completes
+      setTimeout(restoreScrollPosition, 0);
+    }
+  }, [branchCode, getDates, saveScrollPosition, restoreScrollPosition]);
+
+  // Update validation and slot occupancy when data changes
   useEffect(() => {
     if (shiftSettings && schedules.length > 0) {
-      validateSchedules();
+      validateSchedules(schedules);
+      calculateSlotOccupancy();
     }
-  }, [shiftSettings, schedules, validateSchedules]);
+  }, [shiftSettings, schedules, validateSchedules, calculateSlotOccupancy]);
 
-  // Get validation errors for a specific date and shift
-  const getShiftValidationErrors = (date, shift) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const keys = Object.keys(validationErrors).filter(key => 
-      key.startsWith(`${dateStr}-${shift}`)
-    );
-    
-    return keys.map(key => validationErrors[key]);
-  };
+  useEffect(() => {
+    fetchBranch();
+    fetchShiftSettings();
+    fetchData();
+  }, [fetchBranch, fetchShiftSettings, fetchData]);
+
 
   // Optimistic update function to update schedules locally without refetching
   const updateScheduleLocally = (therapistId, dateStr, shift) => {
@@ -557,6 +557,12 @@ const ScheduleManagement = () => {
         branchCode
       }];
     });
+    
+    // Update slot occupancy and validation immediately after state updates
+    setTimeout(() => {
+      calculateSlotOccupancy();
+      validateSchedules();
+    }, 0);
   };
 
   const handleClearDay = async () => {
@@ -588,6 +594,9 @@ const ScheduleManagement = () => {
           });
           return newErrors;
         });
+        
+        // Update slot occupancy
+        setTimeout(() => calculateSlotOccupancy(), 0);
         
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
@@ -628,6 +637,9 @@ const ScheduleManagement = () => {
         
         // Reset validation errors since there are no schedules to validate
         setValidationErrors({});
+        
+        // Update slot occupancy
+        setTimeout(() => calculateSlotOccupancy(), 0);
         
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
@@ -809,6 +821,38 @@ const ScheduleManagement = () => {
           s.date === dateStr
         );
         
+        // Check slot availability before updating
+        if (newShift !== 'X') {
+          const dateObj = new Date(dateStr);
+          const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+          const settingsType = isWeekend ? 'weekend' : 'weekday';
+          const shiftKey = newShift === '1' ? 'shift1' : 
+                          newShift === 'M' ? 'shiftMiddle' : 'shift2';
+                          
+          // Count therapists with this shift on this day (excluding current therapist if already assigned)
+          const currentShiftsCount = schedules.filter(s => 
+            s.date === dateStr && 
+            s.shift === newShift &&
+            s.therapistId !== therapistId
+          ).length;
+          
+          // Check if adding would exceed maximum
+          if (currentShiftsCount >= shiftSettings[settingsType][shiftKey].max) {
+            throw new Error(`Maximum ${shiftSettings[settingsType][shiftKey].max} therapists allowed for this shift`);
+          }
+        } else if (newShift === 'X') {
+          // Check leave availability
+          const currentLeaveCount = schedules.filter(s => 
+            s.date === dateStr && 
+            s.shift === 'X' &&
+            s.therapistId !== therapistId
+          ).length;
+          
+          if (currentLeaveCount >= shiftSettings.off.maxPerDay) {
+            throw new Error(`Maximum ${shiftSettings.off.maxPerDay} therapists can be on leave per day`);
+          }
+        }
+        
         // Optimistic UI update before API call
         updateScheduleLocally(therapistId, dateStr, newShift);
         
@@ -816,17 +860,6 @@ const ScheduleManagement = () => {
         if (newShift === 'X') {
           // Check against shift settings for leave
           const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-          
-          // Check if we're exceeding max leave per day
-          const leavesOnDay = schedules.filter(s => 
-            s.date === dateStr && 
-            s.shift === 'X' && 
-            s.therapistId !== therapistId
-          ).length + 1;
-          
-          if (shiftSettings && leavesOnDay > shiftSettings.off.maxPerDay) {
-            throw new Error(`Maximum ${shiftSettings.off.maxPerDay} therapists can be on leave per day`);
-          }
           
           // Weekend leave restrictions - can be customized based on your requirements
           if (isWeekend && branch?.weekendOnlyMale) {
@@ -897,23 +930,6 @@ const ScheduleManagement = () => {
         // For non-leave shifts, validate against shift settings
         else {
           if (shiftSettings) {
-            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-            const settingsType = isWeekend ? 'weekend' : 'weekday';
-            const shiftKey = newShift === '1' ? 'shift1' : 
-                            newShift === 'M' ? 'shiftMiddle' : 'shift2';
-                            
-            // Count therapists with this shift on this day
-            const shiftsOnDate = schedules.filter(s => 
-              s.date === dateStr && 
-              s.shift === newShift &&
-              s.therapistId !== therapistId
-            ).length + 1;
-            
-            // Check if exceeding maximum allowed
-            if (shiftsOnDate > shiftSettings[settingsType][shiftKey].max) {
-              throw new Error(`Maximum ${shiftSettings[settingsType][shiftKey].max} therapists allowed for this shift`);
-            }
-            
             // Male therapist requirement checks
             if ((newShift === '1' || newShift === 'M') && branch?.genderRestrictionFlag) {
               const therapist = therapists.find(t => t.id === therapistId);
@@ -964,8 +980,11 @@ const ScheduleManagement = () => {
           });
         }
         
-        // Validate the updated schedules
-        validateSchedules();
+        // Update validation and slot occupancy after the change
+        setTimeout(() => {
+          validateSchedules();
+          calculateSlotOccupancy();
+        }, 0);
         
       } catch (err) {
         console.error('Schedule update error:', err);
@@ -977,7 +996,7 @@ const ScheduleManagement = () => {
         setTimeout(restoreScrollPosition, 0);
       }
     }
-  }, [selectedCell, schedules, branchCode, branch, therapists, shiftSettings, saveScrollPosition, restoreScrollPosition, updateScheduleLocally, fetchData, validateSchedules]);
+  }, [selectedCell, schedules, branchCode, branch, therapists, shiftSettings, saveScrollPosition, restoreScrollPosition, updateScheduleLocally, fetchData, validateSchedules, calculateSlotOccupancy]);
 
   // Add this useEffect to handle keyboard events
   useEffect(() => {
@@ -1026,6 +1045,21 @@ const ScheduleManagement = () => {
     );
     
     return keys.map(key => validationErrors[key]);
+  };
+  
+  // Get remaining slots info for header display
+  const getRemainingSlots = (date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const slotData = slotOccupancy[dateStr];
+    
+    if (!slotData) return null;
+    
+    return {
+      shift1: slotData.shift1,
+      shiftM: slotData.shiftM,
+      shift2: slotData.shift2,
+      leave: slotData.leave
+    };
   };
 
   if (isLoading && !isBulkOperation) {
@@ -1110,19 +1144,19 @@ const ScheduleManagement = () => {
           )}
         </div>
 
-        <div className="mb-4 p-3 bg-gray-50 rounded">
+        <div className="mb-4 p-3 bg-gray-50 rounded mx-4">
           <p className="text-sm text-gray-600">
             <strong>Keyboard Controls:</strong> Click on a cell and press 1, 2, M, or X to assign shifts. 
             When setting X (Leave), shift 1 will be auto-assigned before and shift 2 after.
           </p>
         </div>
 
-        <div className="mb-4 p-3 bg-gray-50 rounded">
+        <div className="mx-4">
           {/* Success Message */}
           {showSuccess && <SuccessMessage />}
 
           {error && (
-            <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
               <button 
                 className="float-right text-red-700"
@@ -1142,7 +1176,7 @@ const ScheduleManagement = () => {
         )}
 
         {/* Condensed validation issues summary */}
-        {Object.keys(validationErrors).length > 0 && (
+        {/* {Object.keys(validationErrors).length > 0 && (
           <div className="p-3 mb-2 bg-yellow-50 border border-yellow-200 rounded-lg mx-4">
             <div className="flex items-center gap-2">
               <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1158,7 +1192,7 @@ const ScheduleManagement = () => {
               </span>
             </div>
           </div>
-        )}
+        )} */}
 
         <div 
           className="overflow-x-auto max-h-[600px] overflow-y-auto" 
@@ -1173,22 +1207,64 @@ const ScheduleManagement = () => {
                 {getDates().map(date => {
                   const dateErrors = getDateValidationErrors(date);
                   const hasErrors = dateErrors.length > 0;
+                  const remainingSlots = getRemainingSlots(date);
+                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                   
                   return (
                     <th 
                       key={date.toISOString()} 
                       className={`p-3 border-b text-center min-w-[120px] ${
-                        [0, 6].includes(date.getDay()) ? 'bg-blue-50' : 'bg-gray-50'
+                        isWeekend ? 'bg-blue-50' : 'bg-gray-50'
                       } ${hasErrors ? 'border-yellow-300' : ''}`}
                     >
                       <ValidationTooltip errors={dateErrors}>
                         <div className="font-medium">
                           {format(date, 'EEE, MMM d')}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {[0, 6].includes(date.getDay()) ? 'Weekend' : 'Weekday'}
+                        <div className="text-xs text-gray-500 mb-1">
+                          {isWeekend ? 'Weekend' : 'Weekday'}
                         </div>
-                        {hasErrors && (
+                        
+                        {/* Slot availability indicators */}
+                        {remainingSlots && (
+                          <div className="space-y-1 mt-2 border-t pt-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="font-medium text-blue-600">Shift 1:</span>
+                              <span className={remainingSlots.shift1.current < remainingSlots.shift1.min ? 'text-red-600 font-bold' : ''}>
+                                {remainingSlots.shift1.current}/{remainingSlots.shift1.max}
+                                {/* {remainingSlots.shift1.current < remainingSlots.shift1.min && 
+                                  ` (Need ${remainingSlots.shift1.min - remainingSlots.shift1.current})`} */}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between text-xs">
+                              <span className="font-medium text-green-600">Middle:</span>
+                              <span className={remainingSlots.shiftM.current < remainingSlots.shiftM.min ? 'text-red-600 font-bold' : ''}>
+                                {remainingSlots.shiftM.current}/{remainingSlots.shiftM.max}
+                                {/* {remainingSlots.shiftM.current < remainingSlots.shiftM.min && 
+                                  ` (Need ${remainingSlots.shiftM.min - remainingSlots.shiftM.current})`} */}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between text-xs">
+                              <span className="font-medium text-purple-600">Shift 2:</span>
+                              <span className={remainingSlots.shift2.current < remainingSlots.shift2.min ? 'text-red-600 font-bold' : ''}>
+                                {remainingSlots.shift2.current}/{remainingSlots.shift2.max}
+                                {/* {remainingSlots.shift2.current < remainingSlots.shift2.min && 
+                                  ` (Need ${remainingSlots.shift2.min - remainingSlots.shift2.current})`} */}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between text-xs">
+                              <span className="font-medium text-yellow-600">Leave:</span>
+                              <span className={remainingSlots.leave.current >= remainingSlots.leave.max ? 'text-red-600 font-bold' : ''}>
+                                {remainingSlots.leave.current}/{remainingSlots.leave.max}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {hasErrors && !remainingSlots && (
                           <div className="text-xs text-yellow-600 mt-1 flex items-center justify-center gap-1">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path 
