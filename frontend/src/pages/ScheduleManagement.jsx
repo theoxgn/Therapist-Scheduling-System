@@ -45,7 +45,8 @@ const ShiftBadge = ({ code, onClick, className = '' }) => {
       className={`
         ${shift.color} ${shift.textColor}
         px-3 py-1.5 rounded-md font-bold text-center
-        cursor-pointer select-none
+        cursor-pointer select-none min-w-[40px] min-h-[30px]
+        flex items-center justify-center
         ${className}
       `}
     >
@@ -55,10 +56,17 @@ const ShiftBadge = ({ code, onClick, className = '' }) => {
 };
 
 const ShiftLegend = () => (
-  <div className="flex gap-4 text-sm mb-6">
+  <div className="flex flex-wrap gap-4 text-sm mb-6">
     {Object.entries(SHIFTS).map(([code, shift]) => (
-      <div key={code} className="flex items-center gap-2">
-        <ShiftBadge code={code} />
+      <div key={code} className="flex items-center gap-2 bg-white px-3 py-2 rounded shadow-sm">
+        <div className={`w-8 h-8 flex items-center justify-center rounded-md font-bold ${
+          code === '1' ? 'bg-blue-100 text-blue-600' :
+          code === '2' ? 'bg-purple-100 text-purple-600' :
+          code === 'M' ? 'bg-green-100 text-green-600' :
+          'bg-yellow-100 text-yellow-600'
+        }`}>
+          {code}
+        </div>
         <span className="text-gray-600">{shift.time}</span>
       </div>
     ))}
@@ -66,36 +74,43 @@ const ShiftLegend = () => (
 );
 
 const QuickActions = ({ onClearDay, onClearAllSchedules, onCopyPrevious, onOpenSettings }) => (
-  <div className="grid grid-cols-3 gap-4 mb-6">
+  <div className="grid grid-cols-4 gap-4 mb-6">
     <button
       onClick={onClearDay}
-      className="flex flex-col items-center gap-2 p-3 border rounded hover:bg-gray-50"
+      className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
     >
-      <Trash2 className="w-5 h-5 text-gray-600" />
-      <span className="text-sm">Clear Day</span>
+      <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      </svg>
+      <span className="text-sm font-medium">Clear Day</span>
     </button>
     <button
       onClick={onClearAllSchedules}
-      className="flex flex-col items-center gap-2 p-3 border rounded hover:bg-gray-50 text-red-600"
+      className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
       </svg>
-      <span className="text-sm">Clear All</span>
+      <span className="text-sm font-medium text-red-500">Clear All</span>
     </button>
     <button
       onClick={onCopyPrevious}
-      className="flex flex-col items-center gap-2 p-3 border rounded hover:bg-gray-50"
+      className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
     >
-      <Copy className="w-5 h-5 text-gray-600" />
-      <span className="text-sm">Copy Previous Week</span>
+      <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+      </svg>
+      <span className="text-sm font-medium">Copy Previous Week</span>
     </button>
     <button
       onClick={onOpenSettings}
-      className="flex flex-col items-center gap-2 p-3 border rounded hover:bg-gray-50"
+      className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
     >
-      <Settings className="w-5 h-5 text-gray-600" />
-      <span className="text-sm">Settings</span>
+      <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+      <span className="text-sm font-medium">Settings</span>
     </button>
   </div>
 );
@@ -601,13 +616,13 @@ const ScheduleManagement = () => {
                 saveScrollPosition();
                 setCurrentDate(prev => addDays(prev, -7));
               }}
-              className="p-2 hover:bg-gray-100 rounded"
+              className="p-2 hover:bg-gray-100 rounded-full w-10 h-10 flex items-center justify-center"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
 
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-gray-500" />
+            <div className="flex items-center gap-2 bg-white py-2 px-4 shadow-sm rounded-md">
+              <Calendar className="w-5 h-5 text-gray-600" />
               <span className="font-medium text-lg">
                 {format(currentDate, 'MMMM d, yyyy')}
               </span>
@@ -618,7 +633,7 @@ const ScheduleManagement = () => {
                 saveScrollPosition();
                 setCurrentDate(prev => addDays(prev, 7));
               }}
-              className="p-2 hover:bg-gray-100 rounded"
+              className="p-2 hover:bg-gray-100 rounded-full w-10 h-10 flex items-center justify-center"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
