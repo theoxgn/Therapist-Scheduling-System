@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, addDays } from 'date-fns';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Calendar, Trash2, Copy, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
 
@@ -144,6 +144,29 @@ const SuccessMessage = () => (
   </div>
 );
 
+// Validation message component
+const ValidationMessage = ({ message, type = 'warning' }) => {
+  const bgColor = type === 'error' ? 'bg-red-50' : 'bg-yellow-50';
+  const borderColor = type === 'error' ? 'border-red-200' : 'border-yellow-200';
+  const textColor = type === 'error' ? 'text-red-700' : 'text-yellow-700';
+
+  return (
+    <div className={`mt-2 ${bgColor} border ${borderColor} ${textColor} px-4 py-2 rounded-md text-sm`}>
+      <div className="flex items-center gap-2">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={2} 
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+          />
+        </svg>
+        <span>{message}</span>
+      </div>
+    </div>
+  );
+};
+
 const ScheduleManagement = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [schedules, setSchedules] = useState([]);
@@ -151,10 +174,13 @@ const ScheduleManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const { branchCode } = useParams();
+  const navigate = useNavigate();
   const [branch, setBranch] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
   const [isBulkOperation, setIsBulkOperation] = useState(false);
+  const [shiftSettings, setShiftSettings] = useState(null);
+  const [validationErrors, setValidationErrors] = useState({});
   
   // Refs for maintaining scroll position
   const scrollPositionRef = useRef(0);
@@ -174,6 +200,11 @@ const ScheduleManagement = () => {
     }
   }, []);
 
+  // Function to navigate to shift settings
+  const handleOpenSettings = useCallback(() => {
+    navigate(`/branches/${branchCode}/shift-settings`);
+  }, [navigate, branchCode]);
+
   // Fetch branch details
   const fetchBranch = useCallback(async () => {
     try {
@@ -183,6 +214,40 @@ const ScheduleManagement = () => {
       }
     } catch (err) {
       console.error('Error fetching branch:', err);
+    }
+  }, [branchCode]);
+
+  // Fetch shift settings
+  const fetchShiftSettings = useCallback(async () => {
+    try {
+      const result = await api.shiftSettings.get(branchCode);
+      if (result.success) {
+        setShiftSettings(result.data);
+        console.log('Shift settings loaded:', result.data);
+      } else {
+        console.warn('No shift settings found:', result.error);
+        // Use default settings if none exist
+        setShiftSettings({
+          weekday: {
+            shift1: { min: 2, max: 3 },
+            shiftMiddle: { min: 2, max: 3 },
+            shift2: { min: 2, max: 3 }
+          },
+          weekend: {
+            shift1: { min: 4, max: 5 },
+            shiftMiddle: { min: 4, max: 5 },
+            shift2: { min: 4, max: 5 }
+          },
+          off: {
+            maxPerDay: 2,
+            maxConsecutive: 2,
+            maxPerWeek: 1
+          },
+          settings: { type: 'default' }
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching shift settings:', err);
     }
   }, [branchCode]);
 
@@ -221,9 +286,6 @@ const ScheduleManagement = () => {
       const startDate = format(dates[0], 'yyyy-MM-dd');
       const endDate = format(dates[6], 'yyyy-MM-dd');
 
-      // Log data for debugging
-      console.log('Fetching schedules for:', { branchCode, startDate, endDate });
-
       const schedulesResult = await api.schedules.getByDateRange(
         branchCode,
         startDate,
@@ -233,8 +295,10 @@ const ScheduleManagement = () => {
       if (therapistsResult.success && schedulesResult.success) {
         setTherapists(therapistsResult.data);
         setSchedules(schedulesResult.data);
+        
+        // After loading schedules, validate against shift settings
+        validateSchedules(schedulesResult.data);
       } else {
-        // Log any errors from the API responses
         if (!therapistsResult.success) {
           console.error('Error fetching therapists:', therapistsResult.error);
         }
@@ -255,8 +319,149 @@ const ScheduleManagement = () => {
 
   useEffect(() => {
     fetchBranch();
+    fetchShiftSettings();
     fetchData();
-  }, [fetchBranch, fetchData]);
+  }, [fetchBranch, fetchShiftSettings, fetchData]);
+
+  // Validate schedules against shift settings
+  const validateSchedules = useCallback((schedulesData = schedules) => {
+    if (!shiftSettings) return;
+    
+    const errors = {};
+    const dates = getDates();
+    
+    // For each date, check the shift requirements
+    dates.forEach(date => {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const settingsType = isWeekend ? 'weekend' : 'weekday';
+      
+      // Group schedules by shift for this date
+      const shiftsOnDate = schedulesData.filter(s => s.date === dateStr);
+      const shift1Schedules = shiftsOnDate.filter(s => s.shift === '1');
+      const shiftMSchedules = shiftsOnDate.filter(s => s.shift === 'M');
+      const shift2Schedules = shiftsOnDate.filter(s => s.shift === '2');
+      const leaveSchedules = shiftsOnDate.filter(s => s.shift === 'X');
+      
+      // Check minimum therapists for each shift
+      if (shift1Schedules.length < shiftSettings[settingsType].shift1.min) {
+        errors[`${dateStr}-shift1-min`] = `Need at least ${shiftSettings[settingsType].shift1.min} therapists for Shift 1`;
+      }
+      
+      if (shiftMSchedules.length < shiftSettings[settingsType].shiftMiddle.min) {
+        errors[`${dateStr}-shiftM-min`] = `Need at least ${shiftSettings[settingsType].shiftMiddle.min} therapists for Middle Shift`;
+      }
+      
+      if (shift2Schedules.length < shiftSettings[settingsType].shift2.min) {
+        errors[`${dateStr}-shift2-min`] = `Need at least ${shiftSettings[settingsType].shift2.min} therapists for Shift 2`;
+      }
+      
+      // Check maximum therapists for each shift
+      if (shift1Schedules.length > shiftSettings[settingsType].shift1.max) {
+        errors[`${dateStr}-shift1-max`] = `Maximum ${shiftSettings[settingsType].shift1.max} therapists allowed for Shift 1`;
+      }
+      
+      if (shiftMSchedules.length > shiftSettings[settingsType].shiftMiddle.max) {
+        errors[`${dateStr}-shiftM-max`] = `Maximum ${shiftSettings[settingsType].shiftMiddle.max} therapists allowed for Middle Shift`;
+      }
+      
+      if (shift2Schedules.length > shiftSettings[settingsType].shift2.max) {
+        errors[`${dateStr}-shift2-max`] = `Maximum ${shiftSettings[settingsType].shift2.max} therapists allowed for Shift 2`;
+      }
+      
+      // Check maximum leave requests per day
+      if (leaveSchedules.length > shiftSettings.off.maxPerDay) {
+        errors[`${dateStr}-leave-max`] = `Maximum ${shiftSettings.off.maxPerDay} therapists can be on leave per day`;
+      }
+      
+      // Check male therapist requirement
+      const shift1MaleCount = shift1Schedules.filter(s => 
+        therapists.find(t => t.id === s.therapistId)?.gender === 'male'
+      ).length;
+      
+      const shiftMMaleCount = shiftMSchedules.filter(s => 
+        therapists.find(t => t.id === s.therapistId)?.gender === 'male'
+      ).length;
+      
+      if (shift1Schedules.length > 0 && shift1MaleCount < 1) {
+        errors[`${dateStr}-shift1-male`] = 'At least 1 male therapist required for Shift 1';
+      }
+      
+      if (shiftMSchedules.length > 0 && shiftMMaleCount < 1) {
+        errors[`${dateStr}-shiftM-male`] = 'At least 1 male therapist required for Middle Shift';
+      }
+    });
+    
+    // Check consecutive leave days for therapists
+    therapists.forEach(therapist => {
+      let consecutiveLeave = 0;
+      let totalLeave = 0;
+      let lastLeaveDate = null;
+      
+      // Sort dates to ensure we check in order
+      const sortedDates = getDates().sort((a, b) => a - b);
+      
+      sortedDates.forEach(date => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const therapistSchedule = schedulesData.find(s => 
+          s.therapistId === therapist.id && s.date === dateStr
+        );
+        
+        if (therapistSchedule && therapistSchedule.shift === 'X') {
+          totalLeave++;
+          
+          // Check if consecutive
+          if (lastLeaveDate) {
+            const lastDate = new Date(lastLeaveDate);
+            const currentDate = new Date(dateStr);
+            const dayDiff = Math.round((currentDate - lastDate) / (1000 * 60 * 60 * 24));
+            
+            if (dayDiff === 1) {
+              consecutiveLeave++;
+            } else {
+              consecutiveLeave = 1;
+            }
+          } else {
+            consecutiveLeave = 1;
+          }
+          
+          lastLeaveDate = dateStr;
+        } else {
+          consecutiveLeave = 0;
+          lastLeaveDate = null;
+        }
+        
+        // Check against settings
+        if (consecutiveLeave > shiftSettings.off.maxConsecutive) {
+          errors[`${therapist.id}-consecutive-leave`] = `${therapist.name} has too many consecutive leave days`;
+        }
+      });
+      
+      // Check total leave per week
+      if (totalLeave > shiftSettings.off.maxPerWeek) {
+        errors[`${therapist.id}-total-leave`] = `${therapist.name} has too many leave days in this week`;
+      }
+    });
+    
+    setValidationErrors(errors);
+  }, [getDates, shiftSettings, schedules, therapists]);
+
+  // Check for validation errors when schedules or settings change
+  useEffect(() => {
+    if (shiftSettings && schedules.length > 0) {
+      validateSchedules();
+    }
+  }, [shiftSettings, schedules, validateSchedules]);
+
+  // Get validation errors for a specific date and shift
+  const getShiftValidationErrors = (date, shift) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const keys = Object.keys(validationErrors).filter(key => 
+      key.startsWith(`${dateStr}-${shift}`)
+    );
+    
+    return keys.map(key => validationErrors[key]);
+  };
 
   // Optimistic update function to update schedules locally without refetching
   const updateScheduleLocally = (therapistId, dateStr, shift) => {
@@ -298,11 +503,24 @@ const ScheduleManagement = () => {
       const result = await api.schedules.clearDay(branchCode, currentDate);
       
       if (result.success) {
-        // Optimistically update the UI by removing all schedules for this day
+        // Get the date string for the current date
         const currentDateStr = format(currentDate, 'yyyy-MM-dd');
+        
+        // Optimistically update the UI by removing all schedules for this day
         setSchedules(prevSchedules => 
           prevSchedules.filter(schedule => schedule.date !== currentDateStr)
         );
+        
+        // Remove validation errors for this day
+        setValidationErrors(prevErrors => {
+          const newErrors = { ...prevErrors };
+          Object.keys(newErrors).forEach(key => {
+            if (key.startsWith(currentDateStr)) {
+              delete newErrors[key];
+            }
+          });
+          return newErrors;
+        });
         
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
@@ -340,6 +558,10 @@ const ScheduleManagement = () => {
       if (result.success) {
         // Clear all schedules for the week in the local state
         setSchedules([]);
+        
+        // Reset validation errors since there are no schedules to validate
+        setValidationErrors({});
+        
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
       } else {
@@ -367,9 +589,6 @@ const ScheduleManagement = () => {
       // Get the current week's start date
       const dates = getDates();
       const currentWeekStart = format(dates[0], 'yyyy-MM-dd');
-      
-      // Since api.schedules.copyPreviousWeek is not available, we need to implement 
-      // the functionality here using the available API methods
       
       // Calculate the previous week's dates
       const prevWeekStart = new Date(dates[0]);
@@ -528,6 +747,28 @@ const ScheduleManagement = () => {
         
         // If setting to X (Leave Request), handle the special pattern
         if (newShift === 'X') {
+          // Check against shift settings for leave
+          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+          
+          // Check if we're exceeding max leave per day
+          const leavesOnDay = schedules.filter(s => 
+            s.date === dateStr && 
+            s.shift === 'X' && 
+            s.therapistId !== therapistId
+          ).length + 1;
+          
+          if (shiftSettings && leavesOnDay > shiftSettings.off.maxPerDay) {
+            throw new Error(`Maximum ${shiftSettings.off.maxPerDay} therapists can be on leave per day`);
+          }
+          
+          // Weekend leave restrictions - can be customized based on your requirements
+          if (isWeekend && branch?.weekendOnlyMale) {
+            const therapist = therapists.find(t => t.id === therapistId);
+            if (therapist?.gender === 'male') {
+              throw new Error('Male therapists cannot take leave on weekends at this branch');
+            }
+          }
+          
           // Set up dates for the day before and after
           const prevDate = new Date(date);
           prevDate.setDate(prevDate.getDate() - 1);
@@ -586,6 +827,58 @@ const ScheduleManagement = () => {
             });
           }
         }
+        // For non-leave shifts, validate against shift settings
+        else {
+          if (shiftSettings) {
+            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+            const settingsType = isWeekend ? 'weekend' : 'weekday';
+            const shiftKey = newShift === '1' ? 'shift1' : 
+                            newShift === 'M' ? 'shiftMiddle' : 'shift2';
+                            
+            // Count therapists with this shift on this day
+            const shiftsOnDate = schedules.filter(s => 
+              s.date === dateStr && 
+              s.shift === newShift &&
+              s.therapistId !== therapistId
+            ).length + 1;
+            
+            // Check if exceeding maximum allowed
+            if (shiftsOnDate > shiftSettings[settingsType][shiftKey].max) {
+              throw new Error(`Maximum ${shiftSettings[settingsType][shiftKey].max} therapists allowed for this shift`);
+            }
+            
+            // Male therapist requirement checks
+            if ((newShift === '1' || newShift === 'M') && branch?.genderRestrictionFlag) {
+              const therapist = therapists.find(t => t.id === therapistId);
+              const maleTherapistsInShift = schedules.filter(s => 
+                s.date === dateStr && 
+                s.shift === newShift &&
+                s.therapistId !== therapistId &&
+                therapists.find(t => t.id === s.therapistId)?.gender === 'male'
+              ).length;
+              
+              // If this is the only male therapist and removing would violate constraint
+              if (therapist?.gender === 'male' && maleTherapistsInShift < 1) {
+                const currentShift = existingSchedule?.shift;
+                if (currentShift === newShift) {
+                  // Just updating the same shift, no problem
+                } else {
+                  // Check if removing this therapist would leave no males
+                  const otherMales = schedules.filter(s => 
+                    s.date === dateStr && 
+                    s.shift === currentShift &&
+                    s.therapistId !== therapistId &&
+                    therapists.find(t => t.id === s.therapistId)?.gender === 'male'
+                  ).length;
+                  
+                  if (otherMales === 0 && schedules.filter(s => s.date === dateStr && s.shift === currentShift).length > 0) {
+                    throw new Error(`Cannot remove the only male therapist from ${currentShift === '1' ? 'Shift 1' : 'Middle Shift'}`);
+                  }
+                }
+              }
+            }
+          }
+        }
         
         // Update current day's schedule
         if (existingSchedule) {
@@ -604,7 +897,9 @@ const ScheduleManagement = () => {
           });
         }
         
-        // No need to refetch data since we've already updated state optimistically
+        // Validate the updated schedules
+        validateSchedules();
+        
       } catch (err) {
         console.error('Schedule update error:', err);
         setError(err.message || 'Failed to update shift');
@@ -615,7 +910,7 @@ const ScheduleManagement = () => {
         setTimeout(restoreScrollPosition, 0);
       }
     }
-  }, [selectedCell, schedules, branchCode, saveScrollPosition, restoreScrollPosition, updateScheduleLocally, fetchData]);
+  }, [selectedCell, schedules, branchCode, branch, therapists, shiftSettings, saveScrollPosition, restoreScrollPosition, updateScheduleLocally, fetchData, validateSchedules]);
 
   // Add this useEffect to handle keyboard events
   useEffect(() => {
@@ -645,6 +940,25 @@ const ScheduleManagement = () => {
       s.date === dateStr
     );
     return schedule?.shift || '';
+  };
+  
+  // Get validation errors for a specific date
+  const getDateValidationErrors = (date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const keys = Object.keys(validationErrors).filter(key => 
+      key.startsWith(`${dateStr}`)
+    );
+    
+    return keys.map(key => validationErrors[key]);
+  };
+  
+  // Get validation errors for a specific therapist
+  const getTherapistValidationErrors = (therapistId) => {
+    const keys = Object.keys(validationErrors).filter(key => 
+      key.startsWith(`${therapistId}`)
+    );
+    
+    return keys.map(key => validationErrors[key]);
   };
 
   if (isLoading && !isBulkOperation) {
@@ -700,10 +1014,33 @@ const ScheduleManagement = () => {
             onClearAllSchedules={handleClearAllSchedules}
             onCopyPrevious={handleCopyPrevious}
             onExportPDF={handleExportPDF}
-            onOpenSettings={() => {}}
+            onOpenSettings={handleOpenSettings}
           />
 
           <ShiftLegend />
+          
+          {/* Display shift settings status */}
+          {shiftSettings && (
+            <div className="mb-4 p-3 bg-gray-100 rounded-lg flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-gray-700">
+                  Shift Settings: {shiftSettings.settings?.type === 'default' ? 'Default' : 'Custom'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Weekday: {shiftSettings.weekday.shift1.min}-{shiftSettings.weekday.shift1.max} therapists per shift | 
+                  Weekend: {shiftSettings.weekend.shift1.min}-{shiftSettings.weekend.shift1.max} therapists per shift | 
+                  Max leave: {shiftSettings.off.maxPerDay} per day
+                </p>
+              </div>
+              <button
+                onClick={handleOpenSettings}
+                className="px-3 py-1 bg-blue-100 text-blue-600 rounded-md text-sm hover:bg-blue-200 transition-colors flex items-center gap-1"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Configure</span>
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="mb-4 p-3 bg-gray-50 rounded">
@@ -713,10 +1050,56 @@ const ScheduleManagement = () => {
           </p>
         </div>
 
+        <div className="mb-4 p-3 bg-gray-50 rounded">
+        {/* Success Message */}
+        {showSuccess && <SuccessMessage />}
+
+        {error && (
+          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            {error}
+            <button 
+              className="float-right text-red-700"
+              onClick={() => setError(null)}
+            >
+              &times;
+            </button>
+          </div>
+        )}
+        </div>
+
+
         {isBulkOperation && (
           <div className="flex justify-center items-center p-4">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2" />
             <span>Processing...</span>
+          </div>
+        )}
+
+        {/* Show validation error summary if there are errors */}
+        {Object.keys(validationErrors).length > 0 && (
+          <div className="p-4 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <h3 className="text-yellow-800 font-medium mb-2 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                />
+              </svg>
+              <span>Schedule Validation Issues</span>
+            </h3>
+            <p className="text-sm text-yellow-700 mb-2">
+              The current schedule has some issues based on your shift settings. These don't prevent saving, but you may want to address them:
+            </p>
+            <ul className="text-sm text-yellow-700 list-disc pl-5 max-h-32 overflow-y-auto">
+              {Object.values(validationErrors).slice(0, 5).map((error, index) => (
+                <li key={index}>{error}</li>
+              ))}
+              {Object.values(validationErrors).length > 5 && (
+                <li>...and {Object.values(validationErrors).length - 5} more issues</li>
+              )}
+            </ul>
           </div>
         )}
 
@@ -730,67 +1113,103 @@ const ScheduleManagement = () => {
                 <th className="p-3 border-b bg-gray-50 text-left w-48">
                   NAMA
                 </th>
-                {getDates().map(date => (
-                  <th 
-                    key={date.toISOString()} 
-                    className={`p-3 border-b text-center min-w-[120px] ${
-                      [0, 6].includes(date.getDay()) ? 'bg-blue-50' : 'bg-gray-50'
-                    }`}
-                  >
-                    <div className="font-medium">
-                      {format(date, 'EEE, MMM d')}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {[0, 6].includes(date.getDay()) ? 'Weekend' : 'Weekday'}
-                    </div>
-                  </th>
-                ))}
+                {getDates().map(date => {
+                  const dateErrors = getDateValidationErrors(date);
+                  const hasErrors = dateErrors.length > 0;
+                  
+                  return (
+                    <th 
+                      key={date.toISOString()} 
+                      className={`p-3 border-b text-center min-w-[120px] ${
+                        [0, 6].includes(date.getDay()) ? 'bg-blue-50' : 'bg-gray-50'
+                      } ${hasErrors ? 'border-yellow-300' : ''}`}
+                    >
+                      <div className="font-medium">
+                        {format(date, 'EEE, MMM d')}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {[0, 6].includes(date.getDay()) ? 'Weekend' : 'Weekday'}
+                      </div>
+                      {hasErrors && (
+                        <div className="text-xs text-yellow-600 mt-1 flex items-center justify-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round" 
+                              strokeWidth={2} 
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                            />
+                          </svg>
+                          <span>{dateErrors.length} issues</span>
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
-              {therapists.map(therapist => (
-                <tr key={therapist.id} className="group">
-                  <td className="p-3 border-b font-medium bg-amber-100 sticky left-0">
-                    {therapist.name}
-                  </td>
-                  {getDates().map(date => {
-                    const shift = getTherapistShift(therapist.id, date);
-                    const isSelected = 
-                      selectedCell && 
-                      selectedCell.therapistId === therapist.id && 
-                      format(selectedCell.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
+              {therapists.map(therapist => {
+                const therapistErrors = getTherapistValidationErrors(therapist.id);
+                const hasTherapistErrors = therapistErrors.length > 0;
+                
+                return (
+                  <tr key={therapist.id} className="group">
+                    <td className={`p-3 border-b font-medium sticky left-0 ${
+                      hasTherapistErrors ? 'bg-amber-200' : 'bg-amber-100'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span>{therapist.name}</span>
+                        {therapist.gender === 'male' && (
+                          <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded">M</span>
+                        )}
+                      </div>
+                      {hasTherapistErrors && (
+                        <div className="text-xs text-amber-800 mt-1">
+                          {therapistErrors[0]}
+                        </div>
+                      )}
+                    </td>
+                    {getDates().map(date => {
+                      const shift = getTherapistShift(therapist.id, date);
+                      const isSelected = 
+                        selectedCell && 
+                        selectedCell.therapistId === therapist.id && 
+                        format(selectedCell.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
                       
-                    return (
-                      <td 
-                        key={date.toISOString()}
-                        className={`p-3 border-b border-r text-center ${isSelected ? 'bg-blue-100' : ''}`}
-                        onClick={() => handleCellClick(therapist.id, date)}
-                      >
-                        {shift && <ShiftBadge code={shift} className="w-full" />}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                      // Get validation errors specific to this cell
+                      const dateStr = format(date, 'yyyy-MM-dd');
+                      const cellErrorKeys = Object.keys(validationErrors).filter(key => 
+                        key.includes(dateStr) && key.includes(shift) && !key.includes('min') && !key.includes('max')
+                      );
+                      const hasCellError = cellErrorKeys.length > 0;
+                      
+                      return (
+                        <td 
+                          key={date.toISOString()}
+                          className={`p-3 border-b border-r text-center ${
+                            isSelected ? 'bg-blue-100' : hasCellError ? 'bg-red-50' : ''
+                          }`}
+                          onClick={() => handleCellClick(therapist.id, date)}
+                        >
+                          {shift && (
+                            <div className="relative">
+                              <ShiftBadge code={shift} className="w-full" />
+                              {hasCellError && (
+                                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500"></div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
-
-      {/* Success Message */}
-      {showSuccess && <SuccessMessage />}
-
-      {error && (
-        <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
-          <button 
-            className="float-right text-red-700"
-            onClick={() => setError(null)}
-          >
-            &times;
-          </button>
-        </div>
-      )}
     </div>
   );
 };
