@@ -73,8 +73,8 @@ const ShiftLegend = () => (
   </div>
 );
 
-const QuickActions = ({ onClearDay, onClearAllSchedules, onCopyPrevious, onOpenSettings }) => (
-  <div className="grid grid-cols-4 gap-4 mb-6">
+const QuickActions = ({ onClearDay, onClearAllSchedules, onCopyPrevious, onExportPDF, onOpenSettings }) => (
+  <div className="grid grid-cols-5 gap-4 mb-6">
     <button
       onClick={onClearDay}
       className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
@@ -101,6 +101,15 @@ const QuickActions = ({ onClearDay, onClearAllSchedules, onCopyPrevious, onOpenS
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
       </svg>
       <span className="text-sm font-medium">Copy Previous Week</span>
+    </button>
+    <button
+      onClick={onExportPDF}
+      className="flex flex-col items-center justify-center gap-2 p-4 border rounded hover:bg-gray-50 transition-colors"
+    >
+      <svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      <span className="text-sm font-medium text-blue-500">Export PDF</span>
     </button>
     <button
       onClick={onOpenSettings}
@@ -347,6 +356,7 @@ const ScheduleManagement = () => {
     }
   };
 
+  // Copy previous week's schedules
   const handleCopyPrevious = async () => {
     if (!window.confirm('Copy schedules from previous week?')) return;
     
@@ -357,6 +367,9 @@ const ScheduleManagement = () => {
       // Get the current week's start date
       const dates = getDates();
       const currentWeekStart = format(dates[0], 'yyyy-MM-dd');
+      
+      // Since api.schedules.copyPreviousWeek is not available, we need to implement 
+      // the functionality here using the available API methods
       
       // Calculate the previous week's dates
       const prevWeekStart = new Date(dates[0]);
@@ -429,6 +442,49 @@ const ScheduleManagement = () => {
     } catch (err) {
       console.error('Copy schedules error:', err);
       setError(err.message || 'Failed to copy schedules');
+    } finally {
+      setIsBulkOperation(false);
+      setTimeout(restoreScrollPosition, 0);
+    }
+  };
+
+  // Export PDF functionality
+  const handleExportPDF = async () => {
+    try {
+      setIsBulkOperation(true);
+      saveScrollPosition();
+      
+      // Get the current week's dates
+      const dates = getDates();
+      const startDate = format(dates[0], 'yyyy-MM-dd');
+      const endDate = format(dates[dates.length - 1], 'yyyy-MM-dd');
+      
+      console.log('Exporting PDF with params:', { branchCode, startDate, endDate });
+      
+      // Call the exportPDF API
+      const pdfBlob = await api.schedules.exportPDF({
+        branchCode,
+        startDate,
+        endDate
+      });
+
+      // Create a download link
+      const url = window.URL.createObjectURL(new Blob([pdfBlob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `schedule-${branchCode}-${startDate}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      console.error('Export PDF error:', err);
+      setError('Failed to export schedule to PDF');
     } finally {
       setIsBulkOperation(false);
       setTimeout(restoreScrollPosition, 0);
@@ -643,6 +699,7 @@ const ScheduleManagement = () => {
             onClearDay={handleClearDay}
             onClearAllSchedules={handleClearAllSchedules}
             onCopyPrevious={handleCopyPrevious}
+            onExportPDF={handleExportPDF}
             onOpenSettings={() => {}}
           />
 
