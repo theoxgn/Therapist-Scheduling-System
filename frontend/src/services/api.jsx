@@ -430,10 +430,12 @@ const endpoints = {
       }
     },
 
-    clearAll: async (branchCode) => {
+    clearAll: async (branchCode, startDate, endDate) => {
       try {
         const response = await api.post('/schedules/clear-all', {
-          branchCode
+          branchCode,
+          startDate,
+          endDate
         });
         
         return { 
@@ -444,7 +446,7 @@ const endpoints = {
         console.error('Clear all schedules error:', error.response || error);
         return {
           success: false,
-          error: error.response?.data?.message || 'Failed to clear all schedules'
+          error: error.response?.data?.message || 'Failed to clear schedules for this week'
         };
       }
     },

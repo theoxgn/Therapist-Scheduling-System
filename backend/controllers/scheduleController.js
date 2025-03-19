@@ -494,7 +494,7 @@ const scheduleController = {
   },
   async clearAllSchedules(req, res) {
     try {
-      const { branchCode } = req.body;
+      const { branchCode, startDate, endDate } = req.body;
       
       if (!branchCode) {
         return res.status(400).json({
@@ -502,26 +502,38 @@ const scheduleController = {
           message: 'Branch code is required'
         });
       }
-
-      console.log(`Attempting to clear all schedules for branch: ${branchCode}`);
-
-      // Find all schedules for the branch to count them
-      const schedulesToDelete = await Schedule.findAll({
+  
+      // If date range is provided, only clear schedules within that range
+      const whereClause = {
         include: [{
           model: Therapist,
           where: { branchCode },
           attributes: ['name']
         }]
-      });
-
+      };
+  
+      // Add date range filter if provided
+      if (startDate && endDate) {
+        whereClause.where = {
+          date: {
+            [Op.between]: [startDate, endDate]
+          }
+        };
+        console.log(`Attempting to clear schedules for branch ${branchCode} from ${startDate} to ${endDate}`);
+      } else {
+        console.log(`Attempting to clear all schedules for branch: ${branchCode}`);
+      }
+  
+      const schedulesToDelete = await Schedule.findAll(whereClause);
+  
       if (schedulesToDelete.length === 0) {
         return res.json({
           success: true,
-          message: 'No schedules found for this branch'
+          message: 'No schedules found for this criteria'
         });
       }
-
-      // Delete all schedules for the branch
+  
+      // Delete schedules
       const deletedCount = await Schedule.destroy({
         where: {
           id: {
@@ -529,20 +541,20 @@ const scheduleController = {
           }
         }
       });
-
-      console.log(`Successfully deleted ${deletedCount} schedules for branch ${branchCode}`);
-
+  
+      console.log(`Successfully deleted ${deletedCount} schedules`);
+  
       return res.json({
         success: true,
-        message: `Successfully cleared all schedules (${deletedCount} entries) for branch ${branchCode}`,
+        message: `Successfully cleared ${deletedCount} schedules`,
         count: deletedCount
       });
-
+  
     } catch (error) {
-      console.error('Clear all schedules error:', error);
+      console.error('Clear schedules error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Failed to clear all schedules',
+        message: 'Failed to clear schedules',
         error: error.message
       });
     }

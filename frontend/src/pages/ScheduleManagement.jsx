@@ -204,30 +204,30 @@ const ScheduleManagement = () => {
   };
 
   const handleClearAllSchedules = async () => {
-    // Show confirmation dialog
-    if (!window.confirm('Are you sure you want to clear ALL schedules for this branch? This action cannot be undone.')) {
+    if (!window.confirm('Are you sure you want to clear ALL schedules for this week? This action cannot be undone.')) {
       return;
     }
   
     try {
       setIsLoading(true);
       
-      // Call API to clear all schedules for the branch
-      const result = await api.schedules.clearAll(branchCode);
+      // Get the start and end dates of the current week
+      const dates = getDates();
+      const startDate = format(dates[0], 'yyyy-MM-dd');
+      const endDate = format(dates[dates.length - 1], 'yyyy-MM-dd');
+      
+      const result = await api.schedules.clearAll(branchCode, startDate, endDate);
       
       if (result.success) {
-        // Show success message
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
-        
-        // Refresh the data
         await fetchData();
       } else {
-        setError(result.error || 'Failed to clear all schedules');
+        setError(result.error || 'Failed to clear schedules for this week');
       }
     } catch (err) {
-      console.error('Clear all schedules error:', err);
-      setError('Failed to clear all schedules');
+      console.error('Clear week schedules error:', err);
+      setError('Failed to clear schedules for this week');
     } finally {
       setIsLoading(false);
     }
