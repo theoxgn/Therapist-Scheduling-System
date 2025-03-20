@@ -1058,6 +1058,7 @@ const ScheduleManagement = () => {
               <div className="border rounded-lg overflow-hidden shadow-sm">
                 <ScheduleTable
                   therapists={therapists}
+                  startDate={currentDate}
                   dates={getDates()}
                   getTherapistShift={getTherapistShift}
                   selectedCell={selectedCell}
