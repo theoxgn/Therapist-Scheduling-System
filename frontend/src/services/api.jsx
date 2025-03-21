@@ -468,14 +468,24 @@ const endpoints = {
     exportPDF: async (data) => {
       try {
         console.log('Sending PDF export request with data:', data); // Debug log
-  
+    
         if (!data.branchCode) {
           throw new Error('Branch code is required');
         }
-  
+    
+        // Calculate endDate if it's not provided
+        // For a 2-week schedule, if startDate is provided but endDate is not
+        if (data.startDate && !data.endDate) {
+          const startDate = new Date(data.startDate);
+          const endDate = new Date(startDate);
+          endDate.setDate(startDate.getDate() + 13); // Add 13 days for a full 2 weeks (14 days total)
+          data.endDate = endDate.toISOString().split('T')[0];
+          console.log('Automatically calculated endDate for 2 weeks:', data.endDate);
+        }
+    
         const response = await api.post(
           '/schedules/export-pdf',
-          data, // Kirim data langsung sebagai body
+          data,
           { 
             responseType: 'blob',
             headers: {
@@ -483,16 +493,16 @@ const endpoints = {
             }
           }
         );
-  
+    
         if (response.status !== 200) {
           throw new Error('Failed to generate PDF');
         }
-  
+    
         return response.data;
       } catch (error) {
         console.error('PDF export error:', error);
         
-        // Jika response dalam format blob, kita perlu membacanya
+        // If response is in blob format, we need to read it
         if (error.response?.data instanceof Blob) {
           const text = await error.response.data.text();
           try {

@@ -1,6 +1,6 @@
 // File: src/pages/ScheduleManagement.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { format } from 'date-fns';
+import { format, addDays, startOfWeek } from 'date-fns';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 import api from '../services/api';
@@ -141,10 +141,11 @@ const ScheduleManagement = () => {
 
   const getDates = useCallback(() => {
     const dates = [];
-    const startDate = new Date(currentDate);
-    startDate.setDate(startDate.getDate() - startDate.getDay());
+    // Start from Monday of the current week
+    const startDate = startOfWeek(new Date(currentDate), { weekStartsOn: 1 });
     
-    for (let i = 0; i < 7; i++) {
+    // Generate 14 days (2 weeks) instead of just 7
+    for (let i = 0; i < 14; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
       dates.push(date);
@@ -341,7 +342,7 @@ const ScheduleManagement = () => {
       const therapistsResult = await api.therapists.getByBranch(branchCode);
       const dates = getDates();
       const startDate = format(dates[0], 'yyyy-MM-dd');
-      const endDate = format(dates[6], 'yyyy-MM-dd');
+      const endDate = format(dates[13], 'yyyy-MM-dd');
 
       const schedulesResult = await api.schedules.getByDateRange(
         branchCode,
@@ -515,62 +516,69 @@ const ScheduleManagement = () => {
 
   // Copy previous week's schedules
   const handleCopyPrevious = async () => {
-    if (!window.confirm('Copy schedules from previous week?')) return;
+    if (!window.confirm('Copy schedules from previous two weeks?')) return;
     
     try {
       setIsBulkOperation(true);
       saveScrollPosition();
       
-      // Get the current week's start date
+      // Get the current two weeks' start date
       const dates = getDates();
-      const currentWeekStart = format(dates[0], 'yyyy-MM-dd');
+      const currentTwoWeeksStart = format(dates[0], 'yyyy-MM-dd');
+      const currentTwoWeeksEnd = format(dates[13], 'yyyy-MM-dd');
       
-      // Calculate the previous week's dates
-      const prevWeekStart = new Date(dates[0]);
-      prevWeekStart.setDate(prevWeekStart.getDate() - 7);
-      const prevWeekEnd = new Date(prevWeekStart);
-      prevWeekEnd.setDate(prevWeekEnd.getDate() + 6);
+      // Calculate the previous two weeks' dates
+      const prevTwoWeeksStart = new Date(dates[0]);
+      prevTwoWeeksStart.setDate(prevTwoWeeksStart.getDate() - 14);
+      const prevTwoWeeksEnd = new Date(prevTwoWeeksStart);
+      prevTwoWeeksEnd.setDate(prevTwoWeeksEnd.getDate() + 13);
       
-      const prevStartStr = format(prevWeekStart, 'yyyy-MM-dd');
-      const prevEndStr = format(prevWeekEnd, 'yyyy-MM-dd');
+      const prevStartStr = format(prevTwoWeeksStart, 'yyyy-MM-dd');
+      const prevEndStr = format(prevTwoWeeksEnd, 'yyyy-MM-dd');
       
-      console.log('Copying schedules from previous week:', { prevStartStr, prevEndStr, toWeekStart: currentWeekStart });
+      console.log('Copying schedules from previous two weeks:', 
+        { prevStartStr, prevEndStr, currentStart: currentTwoWeeksStart, currentEnd: currentTwoWeeksEnd });
       
-      // 1. Get the previous week's schedules
-      const prevWeekResult = await api.schedules.getByDateRange(
+      // 1. Get the previous two weeks' schedules
+      const prevTwoWeeksResult = await api.schedules.getByDateRange(
         branchCode,
         prevStartStr,
         prevEndStr
       );
       
-      if (!prevWeekResult.success) {
-        throw new Error(prevWeekResult.error || 'Failed to fetch previous week schedules');
+      if (!prevTwoWeeksResult.success) {
+        throw new Error(prevTwoWeeksResult.error || 'Failed to fetch previous two weeks schedules');
       }
       
-      const prevWeekSchedules = prevWeekResult.data;
+      const prevTwoWeeksSchedules = prevTwoWeeksResult.data;
       
-      if (prevWeekSchedules.length === 0) {
-        setError('No schedules found for previous week to copy');
+      if (prevTwoWeeksSchedules.length === 0) {
+        setError('No schedules found for previous two weeks to copy');
         setIsBulkOperation(false);
         setTimeout(restoreScrollPosition, 0);
         return;
       }
       
-      // 2. Clear current week schedules first
-      const clearResult = await api.schedules.clearDay(branchCode, currentDate);
+      // 2. Clear current two weeks schedules first
+      const clearResult = await api.schedules.clearAll(
+        branchCode,
+        currentTwoWeeksStart,
+        currentTwoWeeksEnd
+      );
+      
       if (!clearResult.success) {
         console.warn('Warning: Failed to clear current schedules:', clearResult.error);
       }
       
-      // 3. Create new schedules with the same pattern but shifted by 7 days
+      // 3. Create new schedules with the same pattern but shifted by 14 days
       let successCount = 0;
-      const totalSchedules = prevWeekSchedules.length;
+      const totalSchedules = prevTwoWeeksSchedules.length;
       
-      for (const schedule of prevWeekSchedules) {
-        // Calculate the new date (7 days later)
+      for (const schedule of prevTwoWeeksSchedules) {
+        // Calculate the new date (14 days later)
         const oldDate = new Date(schedule.date);
         const newDate = new Date(oldDate);
-        newDate.setDate(newDate.getDate() + 7);
+        newDate.setDate(newDate.getDate() + 14);
         const newDateStr = format(newDate, 'yyyy-MM-dd');
         
         // Create the new schedule
@@ -587,7 +595,7 @@ const ScheduleManagement = () => {
       }
       
       // Show success message
-      console.log(`Copied ${successCount} of ${totalSchedules} schedules from previous week`);
+      console.log(`Copied ${successCount} of ${totalSchedules} schedules from previous two weeks`);
       setShowSuccess(true);
       
       // Refresh the data to show the new schedules
@@ -608,11 +616,24 @@ const ScheduleManagement = () => {
       saveScrollPosition();
       
       // Get the current week's dates
-      const dates = getDates();
-      const startDate = format(dates[0], 'yyyy-MM-dd');
-      const endDate = format(dates[dates.length - 1], 'yyyy-MM-dd');
+      const currentDates = getDates();
+      const startDate = format(currentDates[0], 'yyyy-MM-dd');
       
-      console.log('Exporting PDF with params:', { branchCode, startDate, endDate });
+      // Calculate the next week's dates (for 2-week export)
+      const nextWeekStartDate = new Date(currentDates[0]);
+      nextWeekStartDate.setDate(nextWeekStartDate.getDate() + 7);
+      
+      // Get end date (last day of next week)
+      const nextWeekEndDate = new Date(nextWeekStartDate);
+      nextWeekEndDate.setDate(nextWeekEndDate.getDate() + 6);
+      const endDate = format(nextWeekEndDate, 'yyyy-MM-dd');
+      
+      console.log('Exporting PDF with params:', { 
+        branchCode, 
+        startDate, 
+        endDate,
+        range: '2 weeks'
+      });
       
       // Call the exportPDF API
       const pdfBlob = await api.schedules.exportPDF({
@@ -625,7 +646,7 @@ const ScheduleManagement = () => {
       const url = window.URL.createObjectURL(new Blob([pdfBlob]));
       const link = document.createElement('a');
       link.href = url;
-      link.download = `schedule-${branchCode}-${startDate}.pdf`;
+      link.download = `schedule-${branchCode}-${startDate}-2weeks.pdf`;
       document.body.appendChild(link);
       link.click();
       
@@ -634,6 +655,7 @@ const ScheduleManagement = () => {
       window.URL.revokeObjectURL(url);
       
       setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
       console.error('Export PDF error:', err);
       setError('Failed to export schedule to PDF');

@@ -77,9 +77,16 @@ const ScheduleView = () => {
   const handleExportPDF = async () => {
     try {
       setIsExporting(true);
-      const dates = getDates();
-      const startDate = dates[0].toISOString().split('T')[0];
-      const endDate = dates[6].toISOString().split('T')[0];
+      
+      // Get dates for two weeks
+      const currentDates = getDates();
+      const startDate = format(currentDates[0], 'yyyy-MM-dd');
+      
+      // Get next week's dates
+      const nextWeekDate = new Date(currentDate);
+      nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+      const nextWeekDates = getNextWeekDates(nextWeekDate);
+      const endDate = format(nextWeekDates[6], 'yyyy-MM-dd');
 
       console.log('Exporting PDF with params:', { branchCode, startDate, endDate }); // Debug log
 
@@ -89,7 +96,7 @@ const ScheduleView = () => {
         endDate
       });
 
-      //link
+      // Create download link
       const url = window.URL.createObjectURL(new Blob([pdfBlob]));
       const link = document.createElement('a');
       link.href = url;
@@ -100,7 +107,6 @@ const ScheduleView = () => {
       // Cleanup
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-  
 
     } catch (err) {
       console.error('Export error:', err);
@@ -108,6 +114,20 @@ const ScheduleView = () => {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  // Helper function to get next week's dates
+  const getNextWeekDates = (startingDate) => {
+    const dates = [];
+    const startDate = new Date(startingDate);
+    startDate.setDate(startDate.getDate() - startDate.getDay()); // Start from Sunday
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      dates.push(date);
+    }
+    return dates;
   };
 
   // Fetch branch details
